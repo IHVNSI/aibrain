@@ -1,0 +1,517 @@
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.80.161:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.80.161:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://192.168.8.101:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://192.168.8.103:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://100.105.130.147:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://100.105.130.147:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://100.105.130.147:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.81.33:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://100.105.130.147:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://100.105.130.147:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://100.105.130.147:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.80.230:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.80.230:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.80.230:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.80.230:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.80.230:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.80.230:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.81.169:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.81.169:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.81.169:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.81.169:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://100.81.189.149:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://100.81.189.149:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://100.81.189.149:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://100.81.189.149:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://100.81.189.149:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://100.81.189.149:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.82.23:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.82.23:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.82.23:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.82.23:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.82.23:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.82.23:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.82.23:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.130.137.12:5001
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 50.080911879s. [links {
+  description: "Learn more about Gemini API quotas"
+  url: "https://ai.google.dev/gemini-api/docs/rate-limits"
+, violations {
+  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+  quota_dimensions {
+    key: "model"
+    value: "gemini-2.5-flash"
+  }
+  quota_dimensions {
+    key: "location"
+    value: "global"
+  }
+  quota_value: 20
+, retry_delay {
+  seconds: 50
+Traceback (most recent call last):
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\api_core\grpc_helpers.py", line 55, in error_remapped_callable
+    return callable_(*args, **kwargs)
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\grpc\_interceptor.py", line 276, in __call__
+    response, ignored_call = self._with_call(
+                             ~~~~~~~~~~~~~~~^
+        request,
+        ^^^^^^^^
+    ...<4 lines>...
+        compression=compression,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\grpc\_interceptor.py", line 331, in _with_call
+    return call.result(), call
+           ~~~~~~~~~~~^^
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\grpc\_channel.py", line 447, in result
+    raise self
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\grpc\_interceptor.py", line 314, in continuation
+    response, call = self._thunk(new_method).with_call(
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        request,
+        ^^^^^^^^
+    ...<4 lines>...
+        compression=new_compression,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\grpc\_channel.py", line 1182, in with_call
+    return _end_unary_response_blocking(state, call, True, None)
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\grpc\_channel.py", line 999, in _end_unary_response_blocking
+    raise _InactiveRpcError(state)  # pytype: disable=not-instantiable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+grpc._channel._InactiveRpcError: <_InactiveRpcError of RPC that terminated with:
+	status = StatusCode.RESOURCE_EXHAUSTED
+	details = "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 50.080911879s."
+	debug_error_string = "RESOURCE_EXHAUSTED:You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 50.080911879s."
+The above exception was the direct cause of the following exception:
+Traceback (most recent call last):
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\backend\app\api\multiperson_chat.py", line 959, in perform_speaker_diarization
+    response = llm.chat([
+        {"role": "system", "content": "You are an expert at analyzing conversations and identifying speakers. Always respond with valid JSON only."},
+        {"role": "user", "content": diarize_prompt}
+    ])
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\backend\app\llm\providers.py", line 104, in chat
+    resp = model.generate_content(
+        contents,
+        generation_config={"temperature": kwargs.get("temperature", self.temperature)},
+    )
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\generativeai\generative_models.py", line 331, in generate_content
+    response = self._client.generate_content(
+        request,
+        **request_options,
+    )
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\ai\generativelanguage_v1beta\services\generative_service\client.py", line 835, in generate_content
+    response = rpc(
+        request,
+    ...<2 lines>...
+        metadata=metadata,
+    )
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\api_core\gapic_v1\method.py", line 128, in __call__
+    return wrapped_func(*args, **kwargs)
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\api_core\retry\retry_unary.py", line 295, in retry_wrapped_func
+    return retry_target(
+        target,
+    ...<3 lines>...
+        on_error=on_error,
+    )
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\api_core\retry\retry_unary.py", line 157, in retry_target
+    next_sleep = _retry_error_helper(
+        exc,
+    ...<6 lines>...
+        timeout,
+    )
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\api_core\retry\retry_base.py", line 215, in _retry_error_helper
+    raise final_exc from source_exc
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\api_core\retry\retry_unary.py", line 148, in retry_target
+    result = target()
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\api_core\timeout.py", line 130, in func_with_timeout
+    return func(*args, **kwargs)
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\api_core\grpc_helpers.py", line 57, in error_remapped_callable
+    raise exceptions.from_grpc_error(exc) from exc
+google.api_core.exceptions.ResourceExhausted: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 50.080911879s. [links {
+  description: "Learn more about Gemini API quotas"
+  url: "https://ai.google.dev/gemini-api/docs/rate-limits"
+, violations {
+  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+  quota_dimensions {
+    key: "model"
+    value: "gemini-2.5-flash"
+  }
+  quota_dimensions {
+    key: "location"
+    value: "global"
+  }
+  quota_value: 20
+, retry_delay {
+  seconds: 50
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 25.313180475s. [links {
+  description: "Learn more about Gemini API quotas"
+  url: "https://ai.google.dev/gemini-api/docs/rate-limits"
+, violations {
+  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+  quota_dimensions {
+    key: "model"
+    value: "gemini-2.5-flash"
+  }
+  quota_dimensions {
+    key: "location"
+    value: "global"
+  }
+  quota_value: 20
+, retry_delay {
+  seconds: 25
+Traceback (most recent call last):
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\api_core\grpc_helpers.py", line 55, in error_remapped_callable
+    return callable_(*args, **kwargs)
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\grpc\_interceptor.py", line 276, in __call__
+    response, ignored_call = self._with_call(
+                             ~~~~~~~~~~~~~~~^
+        request,
+        ^^^^^^^^
+    ...<4 lines>...
+        compression=compression,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\grpc\_interceptor.py", line 331, in _with_call
+    return call.result(), call
+           ~~~~~~~~~~~^^
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\grpc\_channel.py", line 447, in result
+    raise self
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\grpc\_interceptor.py", line 314, in continuation
+    response, call = self._thunk(new_method).with_call(
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        request,
+        ^^^^^^^^
+    ...<4 lines>...
+        compression=new_compression,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\grpc\_channel.py", line 1182, in with_call
+    return _end_unary_response_blocking(state, call, True, None)
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\grpc\_channel.py", line 999, in _end_unary_response_blocking
+    raise _InactiveRpcError(state)  # pytype: disable=not-instantiable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+grpc._channel._InactiveRpcError: <_InactiveRpcError of RPC that terminated with:
+	status = StatusCode.RESOURCE_EXHAUSTED
+	details = "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 25.313180475s."
+	debug_error_string = "RESOURCE_EXHAUSTED:You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 25.313180475s."
+The above exception was the direct cause of the following exception:
+Traceback (most recent call last):
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\backend\app\api\multiperson_chat.py", line 959, in perform_speaker_diarization
+    response = llm.chat([
+        {"role": "system", "content": "You are an expert at analyzing conversations and identifying speakers. Always respond with valid JSON only."},
+        {"role": "user", "content": diarize_prompt}
+    ])
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\backend\app\llm\providers.py", line 104, in chat
+    resp = model.generate_content(
+        contents,
+        generation_config={"temperature": kwargs.get("temperature", self.temperature)},
+    )
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\generativeai\generative_models.py", line 331, in generate_content
+    response = self._client.generate_content(
+        request,
+        **request_options,
+    )
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\ai\generativelanguage_v1beta\services\generative_service\client.py", line 835, in generate_content
+    response = rpc(
+        request,
+    ...<2 lines>...
+        metadata=metadata,
+    )
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\api_core\gapic_v1\method.py", line 128, in __call__
+    return wrapped_func(*args, **kwargs)
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\api_core\retry\retry_unary.py", line 295, in retry_wrapped_func
+    return retry_target(
+        target,
+    ...<3 lines>...
+        on_error=on_error,
+    )
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\api_core\retry\retry_unary.py", line 157, in retry_target
+    next_sleep = _retry_error_helper(
+        exc,
+    ...<6 lines>...
+        timeout,
+    )
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\api_core\retry\retry_base.py", line 215, in _retry_error_helper
+    raise final_exc from source_exc
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\api_core\retry\retry_unary.py", line 148, in retry_target
+    result = target()
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\api_core\timeout.py", line 130, in func_with_timeout
+    return func(*args, **kwargs)
+  File "C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\.venv\Lib\site-packages\google\api_core\grpc_helpers.py", line 57, in error_remapped_callable
+    raise exceptions.from_grpc_error(exc) from exc
+google.api_core.exceptions.ResourceExhausted: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 25.313180475s. [links {
+  description: "Learn more about Gemini API quotas"
+  url: "https://ai.google.dev/gemini-api/docs/rate-limits"
+, violations {
+  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+  quota_dimensions {
+    key: "model"
+    value: "gemini-2.5-flash"
+  }
+  quota_dimensions {
+    key: "location"
+    value: "global"
+  }
+  quota_value: 20
+, retry_delay {
+  seconds: 25
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.130.137.12:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.130.137.12:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.130.137.12:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.130.137.12:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.157.218.12:5001
+Traceback (most recent call last):
+  File "C:\Users\Ogochukwu\AppData\Roaming\Python\Python313\site-packages\openai\_base_client.py", line 1085, in request
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Ogochukwu\AppData\Roaming\Python\Python313\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '400 Bad Request' for url 'https://api.openai.com/v1/audio/transcriptions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+Traceback (most recent call last):
+  File "C:\Users\Ogochukwu\AppData\Roaming\Python\Python313\site-packages\openai\_base_client.py", line 1085, in request
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Ogochukwu\AppData\Roaming\Python\Python313\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '400 Bad Request' for url 'https://api.openai.com/v1/audio/transcriptions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+Traceback (most recent call last):
+  File "C:\Users\Ogochukwu\AppData\Roaming\Python\Python313\site-packages\openai\_base_client.py", line 1085, in request
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Ogochukwu\AppData\Roaming\Python\Python313\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '400 Bad Request' for url 'https://api.openai.com/v1/audio/transcriptions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+Traceback (most recent call last):
+  File "C:\Users\Ogochukwu\AppData\Roaming\Python\Python313\site-packages\openai\_base_client.py", line 1085, in request
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Ogochukwu\AppData\Roaming\Python\Python313\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '400 Bad Request' for url 'https://api.openai.com/v1/audio/transcriptions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.81.42:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.81.42:5001
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 41.317921289s. [links {
+  description: "Learn more about Gemini API quotas"
+  url: "https://ai.google.dev/gemini-api/docs/rate-limits"
+, violations {
+  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+  quota_dimensions {
+    key: "model"
+    value: "gemini-2.5-flash"
+  }
+  quota_dimensions {
+    key: "location"
+    value: "global"
+  }
+  quota_value: 20
+, retry_delay {
+  seconds: 41
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.81.42:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.81.42:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.81.42:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.81.42:5001
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.81.42:5001
+2026-09-04 17:11:47 INFO [werkzeug] 127.0.0.1 - - [04/Sep/2026 17:11:47] "GET /api/scheduler/tasks HTTP/1.1" 200 -
+2026-09-04 17:11:47 INFO [werkzeug] 127.0.0.1 - - [04/Sep/2026 17:11:47] "GET /api/scheduler/tasks HTTP/1.1" 200 -
+2026-09-04 17:11:49 INFO [werkzeug] 127.0.0.1 - - [04/Sep/2026 17:11:49] "GET /api/system/logs?minutes=1 HTTP/1.1" 200 -
+2026-09-04 17:11:49 INFO [werkzeug] 127.0.0.1 - - [04/Sep/2026 17:11:49] "GET /api/system/logs?minutes=1 HTTP/1.1" 200 -
+2026-09-04 17:11:52 INFO [werkzeug] 127.0.0.1 - - [04/Sep/2026 17:11:52] "GET /api/scheduler/tasks HTTP/1.1" 200 -
+2026-09-04 17:11:52 INFO [werkzeug] 127.0.0.1 - - [04/Sep/2026 17:11:52] "GET /api/scheduler/tasks HTTP/1.1" 200 -
+2026-09-04 17:11:56 INFO [werkzeug] 127.0.0.1 - - [04/Sep/2026 17:11:56] "GET /api/cache/recent?limit=30 HTTP/1.1" 200 -
+2026-09-04 17:11:56 INFO [werkzeug] 127.0.0.1 - - [04/Sep/2026 17:11:56] "GET /api/cache/metrics HTTP/1.1" 200 -
+2026-09-04 17:11:56 INFO [werkzeug] 127.0.0.1 - - [04/Sep/2026 17:11:56] "GET /api/cache/metrics HTTP/1.1" 200 -
+2026-09-04 17:11:56 INFO [werkzeug] 127.0.0.1 - - [04/Sep/2026 17:11:56] "GET /api/cache/recent?limit=30 HTTP/1.1" 200 -
+2026-09-04 17:12:25 INFO [app.api.multiperson_chat]    Content-Type: audio/webm;codecs=opus
+2026-09-04 17:12:25 INFO [app.api.multiperson_chat]    File extension: .webm
+2026-09-04 17:12:25 INFO [app.api.multiperson_chat]    File size: 290430 bytes
+2026-09-04 17:12:30 INFO [app.api.multiperson_chat] 
+============================================================
+2026-09-04 17:12:30 INFO [app.api.multiperson_chat]    Language: english (Nigerian: False)
+2026-09-04 17:12:30 INFO [app.api.multiperson_chat]    File: C:\Users\OGOCHU~1\AppData\Local\Temp\audio_3_6d6d91ba.webm (290430 bytes)
+2026-09-04 17:12:30 INFO [app.api.multiperson_chat]    Model: elevenlabs
+2026-09-04 17:12:30 INFO [app.api.multiperson_chat] ============================================================
+2026-09-04 17:12:31 WARNING [app.api.multiperson_chat] ElevenLabs transcription error: ('Connection aborted.', ConnectionAbortedError(10053, 'An established connection was aborted by the software in your host machine', None, 10053, None))
+2026-09-04 17:12:31 ERROR [app.api.multiperson_chat]    Required fixes:
+2026-09-04 17:12:31 ERROR [app.api.multiperson_chat]    1. For NaijaVox (FREE, African languages):
+2026-09-04 17:12:31 ERROR [app.api.multiperson_chat]       pip install transformers torch librosa
+2026-09-04 17:12:31 ERROR [app.api.multiperson_chat]    2. For Google Cloud (if configured):
+2026-09-04 17:12:31 ERROR [app.api.multiperson_chat]       Set GOOGLE_CLOUD_STT_CREDENTIALS_PATH in .env
+2026-09-04 17:12:31 ERROR [app.api.multiperson_chat]    3. For ElevenLabs:
+2026-09-04 17:12:31 ERROR [app.api.multiperson_chat]       Set ELEVENLABS_API_KEY in .env with 'audio_to_text_create' permission
+2026-09-04 17:12:31 ERROR [app.api.multiperson_chat]    4. For OpenAI Whisper (English only):
+2026-09-04 17:12:31 ERROR [app.api.multiperson_chat]       Set OPENAI_API_KEY in .env
+2026-09-04 17:12:31 INFO [werkzeug] 127.0.0.1 - - [04/Sep/2026 17:12:31] "[35m[1mPOST /api/multiperson/multiperson-diarize HTTP/1.1[0m" 500 -
+2026-09-04 17:13:42 INFO [werkzeug]  * Detected change in 'C:\\Users\\Ogochukwu\\Desktop\\PROJECTS\\PYTHON\\brainr\\backend\\app\\api\\multiperson_chat.py', reloading
+2026-09-04 17:13:43 INFO [werkzeug]  * Restarting with stat
+2026-09-04 17:13:44 INFO [werkzeug]  * Detected change in 'C:\\Users\\Ogochukwu\\Desktop\\PROJECTS\\PYTHON\\brainr\\backend\\app\\api\\multiperson_chat.py', reloading
+2026-09-04 17:13:45 INFO [werkzeug]  * Restarting with stat
+2026-09-04 17:13:48 INFO [app] Engine startup status: {'ready': True, 'vector_store': 'chromadb', 'llm_provider': 'gemini', 'llm_model': 'gemini-2.5-flash', 'connected_db': True, 'init_error': None}
+2026-09-04 17:13:48 WARNING [werkzeug]  * Debugger is active!
+2026-09-04 17:13:48 INFO [werkzeug]  * Debugger PIN: 571-828-090
+2026-09-04 17:13:50 INFO [app] Engine startup status: {'ready': True, 'vector_store': 'chromadb', 'llm_provider': 'gemini', 'llm_model': 'gemini-2.5-flash', 'connected_db': True, 'init_error': None}
+2026-09-04 17:13:50 WARNING [werkzeug]  * Debugger is active!
+2026-09-04 17:13:50 INFO [werkzeug]  * Debugger PIN: 956-552-882
+2026-09-04 17:13:58 INFO [werkzeug]  * Detected change in 'C:\\Users\\Ogochukwu\\Desktop\\PROJECTS\\PYTHON\\brainr\\backend\\app\\api\\multiperson_chat.py', reloading
+2026-09-04 17:13:58 INFO [werkzeug]  * Restarting with stat
+2026-09-04 17:13:58 INFO [werkzeug]  * Detected change in 'C:\\Users\\Ogochukwu\\Desktop\\PROJECTS\\PYTHON\\brainr\\backend\\app\\api\\multiperson_chat.py', reloading
+2026-09-04 17:13:58 INFO [werkzeug]  * Restarting with stat
+2026-09-04 17:14:05 INFO [app] Engine startup status: {'ready': True, 'vector_store': 'chromadb', 'llm_provider': 'gemini', 'llm_model': 'gemini-2.5-flash', 'connected_db': True, 'init_error': None}
+2026-09-04 17:14:05 WARNING [werkzeug]  * Debugger is active!
+2026-09-04 17:14:05 INFO [werkzeug]  * Debugger PIN: 956-552-882
+2026-09-04 17:14:05 INFO [app] Engine startup status: {'ready': True, 'vector_store': 'chromadb', 'llm_provider': 'gemini', 'llm_model': 'gemini-2.5-flash', 'connected_db': True, 'init_error': None}
+2026-09-04 17:14:05 WARNING [werkzeug]  * Debugger is active!
+2026-09-04 17:14:05 INFO [werkzeug]  * Debugger PIN: 571-828-090
+2026-09-04 17:14:25 INFO [werkzeug]  * Detected change in 'C:\\Users\\Ogochukwu\\Desktop\\PROJECTS\\PYTHON\\brainr\\backend\\app\\api\\multiperson_chat.py', reloading
+2026-09-04 17:14:26 INFO [werkzeug]  * Restarting with stat
+2026-09-04 17:14:27 INFO [werkzeug]  * Detected change in 'C:\\Users\\Ogochukwu\\Desktop\\PROJECTS\\PYTHON\\brainr\\backend\\app\\api\\multiperson_chat.py', reloading
+2026-09-04 17:14:27 INFO [werkzeug]  * Restarting with stat
+2026-09-04 17:14:31 INFO [app] Engine startup status: {'ready': True, 'vector_store': 'chromadb', 'llm_provider': 'gemini', 'llm_model': 'gemini-2.5-flash', 'connected_db': True, 'init_error': None}
+2026-09-04 17:14:31 WARNING [werkzeug]  * Debugger is active!
+2026-09-04 17:14:31 INFO [werkzeug]  * Debugger PIN: 571-828-090
+2026-09-04 17:14:33 INFO [app] Engine startup status: {'ready': True, 'vector_store': 'chromadb', 'llm_provider': 'gemini', 'llm_model': 'gemini-2.5-flash', 'connected_db': True, 'init_error': None}
+2026-09-04 17:14:33 WARNING [werkzeug]  * Debugger is active!
+2026-09-04 17:14:33 INFO [werkzeug]  * Debugger PIN: 956-552-882
+2026-09-04 17:15:46 INFO [app] Engine startup status: {'ready': True, 'vector_store': 'chromadb', 'llm_provider': 'gemini', 'llm_model': 'gemini-2.5-flash', 'connected_db': True, 'init_error': None}
+2026-09-04 17:15:46 INFO [werkzeug] [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.81.42:5001
+2026-09-04 17:15:46 INFO [werkzeug] [33mPress CTRL+C to quit[0m
+2026-09-04 17:15:46 INFO [werkzeug]  * Restarting with stat
+2026-09-04 17:15:54 INFO [app] Engine startup status: {'ready': True, 'vector_store': 'chromadb', 'llm_provider': 'gemini', 'llm_model': 'gemini-2.5-flash', 'connected_db': True, 'init_error': None}
+2026-09-04 17:15:54 WARNING [werkzeug]  * Debugger is active!
+2026-09-04 17:15:54 INFO [werkzeug]  * Debugger PIN: 956-552-882
+2026-09-09 09:28:35 INFO [app] Engine startup status: {'ready': True, 'vector_store': 'chromadb', 'llm_provider': 'gemini', 'llm_model': 'gemini-2.5-flash', 'connected_db': True, 'init_error': None}
+2026-09-09 09:28:35 INFO [werkzeug] [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.10.81.54:5001
+2026-09-09 09:28:35 INFO [werkzeug] [33mPress CTRL+C to quit[0m
+2026-09-09 09:28:35 INFO [werkzeug]  * Restarting with stat
+2026-09-09 09:28:43 INFO [app] Engine startup status: {'ready': True, 'vector_store': 'chromadb', 'llm_provider': 'gemini', 'llm_model': 'gemini-2.5-flash', 'connected_db': True, 'init_error': None}
+2026-09-09 09:28:43 WARNING [werkzeug]  * Debugger is active!
+2026-09-09 09:28:43 INFO [werkzeug]  * Debugger PIN: 571-828-090

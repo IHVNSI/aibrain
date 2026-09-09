@@ -1,0 +1,52 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: clientshot-agentic-rag-api:latest
+    container_name: clientshot-agentic-rag-api
+    env_file:
+      - ./backend/.env
+    environment:
+      - DOCS_FOLDER=/docs
+      - HOME=/app/data
+      - HF_HOME=/app/data/huggingface
+      - TRANSFORMERS_CACHE=/app/data/huggingface
+      - XDG_CACHE_HOME=/app/data/.cache
+    ports:
+      - "5001:5001"
+    volumes:
+      - agentic_rag_data:/app/data
+      - ./docs:/docs:ro
+      - ./logs:/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:5001/api/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    networks:
+      - dev-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: clientshot-agentic-rag-frontend:latest
+    container_name: clientshot-agentic-rag-frontend
+    ports:
+      - "8082:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - dev-network
+
+networks:
+  dev-network:
+    external: true
+
+volumes:
+  agentic_rag_data:

@@ -1,0 +1,75 @@
+# ===== assistantai backend dependencies =====
+Flask>=3.0
+flask-cors>=4.0
+Flask-SQLAlchemy>=3.1
+python-dotenv>=1.0
+SQLAlchemy>=2.0
+
+# Text-to-SQL engine (0.7.x API: vanna.base / vanna.chromadb modules)
+vanna>=0.7.5,<0.8
+
+# Vector stores (install what you use)
+chromadb>=0.5
+faiss-cpu>=1.8
+pinecone-client>=5.0
+
+# Embeddings (offline-capable)
+sentence-transformers>=3.0
+
+# Cloud LLM SDKs
+google-generativeai>=0.8
+openai>=1.40
+anthropic>=0.34
+
+# Google Cloud Speech-to-Text (STT) - Best support for African languages
+google-cloud-speech>=2.21
+
+# Free offline Hugging Face LLM
+transformers>=4.44
+torch>=2.2
+
+# NaijaVox-2.0: Nigerian language speech-to-text (Yoruba, Hausa, Igbo, Pidgin, Nigerian English)
+# Model: https://huggingface.co/Axiveri/NaijaVox-2.0
+# Features: Built on Whisper-large-v3 with PEFT LoRA fine-tuning (22.58% WER)
+torchaudio>=2.0  # Audio processing
+librosa>=0.10  # Audio feature extraction for NaijaVox preprocessing
+# Google Cloud Text-to-Speech (TTS) - High-quality synthesis for Nigerian languages
+google-cloud-texttospeech>=2.14
+
+# Machine translation for multilingual support
+google-cloud-translate>=3.11  # Google Cloud Translation API
+
+# Azure Speech Services (Speech-to-Text and Text-to-Speech)
+azure-cognitiveservices-speech>=1.31
+
+# ElevenLabs API for premium voices with voice cloning
+elevenlabs>=0.2.25
+
+# Audio processing and manipulation
+pydub>=0.25.1  # Audio file manipulation (MP3, WAV, OGG, etc.)
+waveform>=0.0.4  # Waveform analysis
+# Database drivers
+psycopg2-binary>=2.9
+PyMySQL>=1.1
+
+# Auth (JWT + password hashing)
+PyJWT>=2.8
+
+# Interactive API documentation (Swagger UI / OpenAPI)
+flasgger>=0.9.7
+
+# Knowledge base file ingestion
+python-docx>=1.1
+openpyxl>=3.1
+python-pptx>=0.6.23
+pypdf>=4.2
+Pillow>=10.4
+pytesseract>=0.3.10
+
+# Email support - Read, send, schedule emails
+imap-tools>=1.4  # IMAP client for reading emails
+email-validator>=2.0  # Email validation
+
+# Task scheduling - Schedule tasks with natural language
+APScheduler>=3.10  # Cron-like job scheduling
+python-dateutil>=2.8  # Date/time utilities

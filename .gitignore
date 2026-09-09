@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.db
+.env
+
+# Vanna vector stores
+vanna_chroma/
+vanna_faiss/
+
+# Node
+node_modules/
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
+backend/.env
