@@ -9,6 +9,8 @@ import TableRoleAccessPanel from '../components/TableRoleAccessPanel'
 import EmailTab from './EmailTab'
 import SchedulerTab from './SchedulerTab'
 import AudioConfigPanel from '../components/AudioConfigPanel'
+import SocialMediaTab from '../components/SocialMediaTab'
+import WhatsAppWebTab from '../components/WhatsAppWebTab'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import Swal from 'sweetalert2'
@@ -16,7 +18,7 @@ import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import {
   Cpu, Database, Layers, GraduationCap, MessagesSquare, Gauge,
-  Save, Loader, CheckCircle2, XCircle, Play, Trash2, RefreshCw, Upload, Pencil, X, Shield, Volume2, FileText, Download, Eye, Search, Copy, Terminal, Zap, Mic, Square, Mail, Clock
+  Save, Loader, CheckCircle2, XCircle, Play, Trash2, RefreshCw, Upload, Pencil, X, Shield, Volume2, FileText, Download, Eye, Search, Copy, Terminal, Zap, Mic, Square, Mail, Clock, MessageCircle
 } from 'lucide-react'
 
 const BASE_TABS = [
@@ -37,6 +39,8 @@ const BASE_TABS = [
   { id: 'cache', label: 'Caching / Metrics', icon: Gauge },
   { id: 'api-doc', label: 'DOCS', icon: FileText },
   { id: 'email', label: 'Email', icon: Mail, adminOnly: true },
+  { id: 'social-media', label: 'Social Media (API)', icon: MessageCircle, adminOnly: true },
+  { id: 'whatsapp-web', label: 'WhatsApp (Web)', icon: MessageCircle, adminOnly: true },
   { id: 'scheduler', label: 'Scheduler', icon: Clock, adminOnly: true },
   { id: 'server-logs', label: 'Server Logs', icon: Terminal, adminOnly: true },
 ]
@@ -125,6 +129,8 @@ export default function Settings() {
       {tab === 'audit' && <AuditLogsTab />}
       {tab === 'cache' && <CacheTab />}
       {tab === 'email' && <EmailTab />}
+      {tab === 'social-media' && <SocialMediaTab />}
+      {tab === 'whatsapp-web' && <WhatsAppWebTab />}
       {tab === 'scheduler' && <SchedulerTab />}
       {tab === 'server-logs' && <ServerLogsTab />}
     </div>

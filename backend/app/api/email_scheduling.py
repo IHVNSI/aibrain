@@ -575,6 +575,20 @@ def update_email_config():
         if not email_password:
             return jsonify({"success": False, "error": "Email password is required"}), 400
         
+        # Set default IMAP/SMTP servers based on provider if not provided
+        if not imap_server:
+            provider_defaults = {
+                'gmail': ('imap.gmail.com', 993, 'smtp.gmail.com', 587),
+                'outlook': ('outlook.office365.com', 993, 'smtp.office365.com', 587),
+                'yahoo': ('imap.mail.yahoo.com', 993, 'smtp.mail.yahoo.com', 465),
+                'icloud': ('imap.mail.me.com', 993, 'smtp.mail.me.com', 587),
+            }
+            if email_provider in provider_defaults:
+                imap_server, imap_port, smtp_server, smtp_port = provider_defaults[email_provider]
+                logger.info(f"Using default servers for {email_provider}")
+            else:
+                return jsonify({"success": False, "error": f"Unsupported email provider: {email_provider}. Please provide IMAP and SMTP servers."}), 400
+        
         # Update environment variables
         env_updates = {
             'EMAIL_ADDRESS': email_address,
@@ -603,13 +617,14 @@ def update_email_config():
         if test_connection:
             try:
                 from ..email_service import EmailService
-                service = EmailService(imap_server, email_address, email_password)
+                service = EmailService(imap_server, email_address, email_password, imap_port)
                 if service.connect():
                     test_result = "✓ Connection successful"
                     service.disconnect()
                 else:
                     test_result = "✗ Connection failed"
             except Exception as e:
+                logger.error(f"Test connection failed: {e}", exc_info=True)
                 test_result = f"✗ Connection error: {str(e)}"
         
         return jsonify({
@@ -626,6 +641,85 @@ def update_email_config():
     
     except Exception as e:
         logger.error(f"Error updating email config: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@email_bp.route('/check-interval', methods=['GET'])
+@require_auth
+def get_check_interval():
+    """Get the current email check interval."""
+    try:
+        check_interval = int(os.getenv('EMAIL_CHECK_INTERVAL', '5'))
+        scheduler = get_task_scheduler()
+        
+        # Get the automatic email check task
+        tasks = scheduler.get_all_tasks()
+        auto_check = next((t for t in tasks if t['name'] == 'Automatic Email Check'), None)
+        
+        return jsonify({
+            "success": True,
+            "check_interval": check_interval,
+            "unit": "minutes",
+            "task": auto_check
+        }), 200
+    except Exception as e:
+        logger.error(f"Error getting check interval: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@email_bp.route('/check-interval', methods=['POST'])
+@require_auth
+def update_check_interval():
+    """
+    Update the email check interval.
+    
+    Request body:
+    {
+        "check_interval": 10  // minutes
+    }
+    """
+    try:
+        data = request.json or {}
+        new_interval = data.get('check_interval', 5)
+        
+        # Validate
+        if not isinstance(new_interval, int) or new_interval < 1 or new_interval > 1440:
+            return jsonify({
+                "success": False,
+                "error": "Check interval must be between 1 and 1440 minutes (24 hours)"
+            }), 400
+        
+        # Update .env file
+        from ..db_migration import _update_env_file
+        _update_env_file('EMAIL_CHECK_INTERVAL', str(new_interval))
+        
+        # Update current process environment
+        os.environ['EMAIL_CHECK_INTERVAL'] = str(new_interval)
+        
+        # Update the scheduled task
+        scheduler = get_task_scheduler()
+        tasks = scheduler.get_all_tasks()
+        auto_check = next((t for t in tasks if t['name'] == 'Automatic Email Check'), None)
+        
+        if auto_check:
+            scheduler.update_task(
+                auto_check['id'],
+                schedule_config={
+                    'type': 'interval',
+                    'minutes': new_interval
+                },
+                description=f'Automatically check for new emails every {new_interval} minutes'
+            )
+            logger.info(f"✓ Email check interval updated to {new_interval} minutes")
+        
+        return jsonify({
+            "success": True,
+            "message": f"Email check interval updated to {new_interval} minutes",
+            "check_interval": new_interval
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"Error updating check interval: {e}", exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -944,17 +1038,45 @@ def initialize_email_handlers(scheduler: TaskScheduler):
     """Register email-related task handlers."""
     
     def handle_email_check(task, task_config):
-        """Handle email check task."""
-        email_service = EmailConfig.get_email_service()
-        if not email_service:
-            logger.warning("Email service not configured, skipping email check")
-            return None
-        
-        emails = email_service.get_unread_emails(limit=task_config.get('limit', 10))
-        email_service.disconnect()
-        
-        logger.info(f"✓ Email check completed: {len(emails)} unread emails")
-        return {"emails_checked": len(emails), "unread_count": len(emails)}
+        """Handle email check task and broadcast to WebSocket clients."""
+        try:
+            from ..socket_events import broadcast_email_event
+            
+            email_service = EmailConfig.get_email_service()
+            if not email_service:
+                logger.warning("Email service not configured, skipping email check")
+                return None
+            
+            emails = email_service.get_unread_emails(limit=task_config.get('limit', 10))
+            email_service.disconnect()
+            
+            logger.info(f"✓ Email check completed: {len(emails)} unread emails")
+            
+            # Broadcast email check result to connected WebSocket clients
+            if emails:
+                for email in emails:
+                    try:
+                        broadcast_email_event('new_email', {
+                            'id': email.get('id'),
+                            'from': email.get('from'),
+                            'subject': email.get('subject'),
+                            'date': email.get('date'),
+                            'preview': email.get('text', '')[:100] if email.get('text') else ''
+                        })
+                    except Exception as e:
+                        logger.error(f"Error broadcasting individual email: {e}")
+                
+                # Also broadcast summary
+                broadcast_email_event('emails_checked', {
+                    'total_checked': len(emails),
+                    'new_emails': len(emails),
+                    'timestamp': datetime.utcnow().isoformat()
+                })
+            
+            return {"emails_checked": len(emails), "unread_count": len(emails)}
+        except Exception as e:
+            logger.error(f"Error in handle_email_check: {e}", exc_info=True)
+            return {"error": str(e)}
     
     def handle_email_respond(task, task_config):
         """Handle automatic email response with LLM."""
@@ -1059,3 +1181,54 @@ Only return the email body, no subject line or formatting."""
     # Register handlers
     scheduler.register_task_handler('email_check', handle_email_check)
     scheduler.register_task_handler('email_respond', handle_email_respond)
+
+
+def setup_email_scheduler():
+    """
+    Initialize and setup automatic email checking on app startup.
+    Creates an email check task using EMAIL_CHECK_INTERVAL setting.
+    """
+    try:
+        scheduler = get_task_scheduler()
+        
+        # Initialize handlers if not already done
+        if 'email_check' not in scheduler.task_handlers:
+            initialize_email_handlers(scheduler)
+        
+        # Get check interval from environment (default: 5 minutes)
+        check_interval = int(os.getenv('EMAIL_CHECK_INTERVAL', '5'))
+        
+        # Create automatic email check task if it doesn't exist
+        existing_tasks = scheduler.get_all_tasks()
+        task_exists = any(t.get('name') == 'Automatic Email Check' for t in existing_tasks)
+        
+        if not task_exists:
+            scheduler.create_task(
+                name='Automatic Email Check',
+                task_type='email_check',
+                natural_language_instruction=f'Check email every {check_interval} minutes',
+                schedule_config={
+                    'type': 'interval',
+                    'minutes': check_interval
+                },
+                task_config={
+                    'limit': 20,
+                    'folder': 'INBOX'
+                },
+                description=f'Automatically check for new emails every {check_interval} minutes',
+                created_by='system'
+            )
+            logger.info(f"✓ Created automatic email check task (interval: {check_interval} minutes)")
+        else:
+            logger.info("✓ Automatic email check task already exists")
+        
+        # Start the scheduler if not already running
+        if not scheduler.scheduler.running:
+            scheduler.start()
+            logger.info("✓ Email scheduler started")
+        else:
+            logger.info("✓ Email scheduler already running")
+        
+    except Exception as e:
+        logger.error(f"Error setting up email scheduler: {e}", exc_info=True)
+

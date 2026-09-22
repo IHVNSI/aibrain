@@ -3,7 +3,7 @@ import os
 import logging
 from imap_tools import MailBox, AND
 from email_validator import validate_email, EmailNotValidError
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -33,10 +33,10 @@ class EmailService:
         try:
             self.mailbox = MailBox(self.imap_server, port=self.imap_port)
             self.mailbox.login(self.email, self.password)
-            logger.info(f"✓ Connected to email: {self.email}")
+            logger.info("Connected to email: %s", self.email)
             return True
         except Exception as e:
-            logger.error(f"Failed to connect to email server: {e}")
+            logger.error("Failed to connect to email server: %s", str(e))
             return False
     
     def disconnect(self):
@@ -44,10 +44,9 @@ class EmailService:
         if self.mailbox:
             try:
                 self.mailbox.logout()
-                logger.info("✓ Disconnected from email server")
+                logger.info("Disconnected from email server")
             except Exception as e:
-                logger.warning(f"Error disconnecting: {e}")
-    
+                logger.warning("Error disconnecting: %s", str(e))
     def get_unread_emails(self, limit: int = 10, folder: str = 'INBOX') -> List[Dict[str, Any]]:
         """
         Get unread emails.
@@ -65,28 +64,28 @@ class EmailService:
         try:
             emails = []
             # Get unread emails, ordered by newest first
-            criteria = [AND(seen=False)]
+            criteria = AND(seen=False)
             
             # Select the folder and fetch emails
-            with self.mailbox.folder(folder):
-                for msg in self.mailbox.fetch(criteria, limit=limit, reverse=True):
-                    emails.append({
-                        'id': msg.uid,
-                        'from': msg.from_,
-                        'to': msg.to,
-                        'subject': msg.subject,
-                        'text': msg.text or '',
-                        'html': msg.html or '',
-                        'date': msg.date.isoformat() if msg.date else None,
-                        'is_unread': not msg.seen,
-                        'cc': msg.cc,
-                        'bcc': msg.bcc,
-                    })
+            self.mailbox.folder.set(folder)
+            for msg in self.mailbox.fetch(criteria, limit=limit, reverse=True):
+                emails.append({
+                    'id': msg.uid,
+                    'from': msg.from_,
+                    'to': msg.to,
+                    'subject': msg.subject,
+                    'text': msg.text or '',
+                    'html': msg.html or '',
+                    'date': msg.date.isoformat() if msg.date else None,
+                    'is_unread': '\\Seen' not in msg.flags,
+                    'cc': msg.cc,
+                    'bcc': msg.bcc,
+                })
             
-            logger.info(f"✓ Retrieved {len(emails)} unread emails from {folder}")
+            logger.info("Retrieved %d unread emails from %s", len(emails), folder)
             return emails
         except Exception as e:
-            logger.error(f"Error retrieving emails from {folder}: {e}")
+            logger.error("Error retrieving emails from %s: %s", folder, str(e))
             return []
     
     def get_emails_by_date_range(self, days_back: int = 7, limit: int = 20) -> List[Dict[str, Any]]:
@@ -104,25 +103,27 @@ class EmailService:
             return []
         
         try:
-            since_date = datetime.now() - timedelta(days=days_back)
-            criteria = [AND(date_gte=since_date)]
+            # Convert datetime to date for imap_tools compatibility
+            since_date = (datetime.now() - timedelta(days=days_back)).date()
+            criteria = AND(date_gte=since_date)
             
             emails = []
-            # Use INBOX folder
-            with self.mailbox.folder('INBOX'):
-                for msg in self.mailbox.fetch(criteria, limit=limit, reverse=True):
-                    emails.append({
-                        'id': msg.uid,
-                        'from': msg.from_,
-                        'subject': msg.subject,
-                        'text': msg.text or '',
-                        'date': msg.date.isoformat() if msg.date else None,
-                        'is_unread': not msg.seen,
-                    })
+            # Select INBOX folder
+            self.mailbox.folder.set('INBOX')
+            for msg in self.mailbox.fetch(criteria, limit=limit, reverse=True):
+                emails.append({
+                    'id': msg.uid,
+                    'from': msg.from_,
+                    'subject': msg.subject,
+                    'text': msg.text or '',
+                    'date': msg.date.isoformat() if msg.date else None,
+                    'is_unread': '\\Seen' not in msg.flags,
+                })
             
+            logger.info("Retrieved %d emails from last %d days", len(emails), days_back)
             return emails
         except Exception as e:
-            logger.error(f"Error retrieving emails by date: {e}")
+            logger.error("Error retrieving emails by date: %s", str(e))
             return []
     
     def mark_as_read(self, email_id: str, folder: str = 'INBOX') -> bool:
@@ -131,12 +132,12 @@ class EmailService:
             return False
         
         try:
-            with self.mailbox.folder(folder):
-                self.mailbox.flag([email_id], [r'\Seen'], True)
-            logger.info(f"✓ Marked email {email_id} as read")
+            self.mailbox.folder.set(folder)
+            self.mailbox.flag([email_id], [r'\Seen'], True)
+            logger.info("Marked email %s as read", email_id)
             return True
         except Exception as e:
-            logger.error(f"Error marking email as read: {e}")
+            logger.error("Error marking email as read: %s", str(e))
             return False
     
     def mark_as_unread(self, email_id: str, folder: str = 'INBOX') -> bool:
@@ -145,12 +146,12 @@ class EmailService:
             return False
         
         try:
-            with self.mailbox.folder(folder):
-                self.mailbox.flag([email_id], [r'\Seen'], False)
-            logger.info(f"✓ Marked email {email_id} as unread")
+            self.mailbox.folder.set(folder)
+            self.mailbox.flag([email_id], [r'\Seen'], False)
+            logger.info("Marked email %s as unread", email_id)
             return True
         except Exception as e:
-            logger.error(f"Error marking email as unread: {e}")
+            logger.error("Error marking email as unread: %s", str(e))
             return False
     
     def search_emails(self, query: str, limit: int = 10, folder: str = 'INBOX') -> List[Dict[str, Any]]:
@@ -169,26 +170,23 @@ class EmailService:
             return []
         
         try:
-            criteria = [
-                AND(subject=query),
-                # Add more criteria as needed
-            ]
+            criteria = AND(subject=query)
             
             emails = []
-            with self.mailbox.folder(folder):
-                for msg in self.mailbox.fetch(criteria, limit=limit):
-                    if query.lower() in msg.subject.lower() or query.lower() in (msg.text or '').lower():
-                        emails.append({
-                            'id': msg.uid,
-                            'from': msg.from_,
-                            'subject': msg.subject,
-                            'text': msg.text or '',
-                            'date': msg.date.isoformat() if msg.date else None,
-                        })
+            self.mailbox.folder.set(folder)
+            for msg in self.mailbox.fetch(criteria, limit=limit):
+                if query.lower() in msg.subject.lower() or query.lower() in (msg.text or '').lower():
+                    emails.append({
+                        'id': msg.uid,
+                        'from': msg.from_,
+                        'subject': msg.subject,
+                        'text': msg.text or '',
+                        'date': msg.date.isoformat() if msg.date else None,
+                    })
             
             return emails
         except Exception as e:
-            logger.error(f"Error searching emails: {e}")
+            logger.error("Error searching emails: %s", str(e))
             return []
     
     def get_folder_list(self) -> List[str]:
@@ -200,7 +198,7 @@ class EmailService:
             folders = self.mailbox.folder.list()
             return [f.name for f in folders]
         except Exception as e:
-            logger.error(f"Error getting folder list: {e}")
+            logger.error("Error getting folder list: %s", str(e))
             return []
 
 
@@ -247,7 +245,7 @@ class EmailConfig:
         imap_server = cls.IMAP_SERVERS.get(provider.lower(), os.getenv('EMAIL_IMAP_SERVER'))
         
         if not imap_server:
-            logger.error(f"Unknown email provider: {provider}")
+            logger.error("Unknown email provider: %s", provider)
             return None
         
         # Get IMAP port from .env, default to 993 for SSL

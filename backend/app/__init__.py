@@ -1,5 +1,6 @@
 """Flask application factory for assistantai."""
 import logging
+import sys
 import os
 
 from flask import Flask, jsonify
@@ -9,10 +10,20 @@ from sqlalchemy import text
 from .config import Config
 from .extensions import db
 
+# Configure logging with UTF-8 encoding to support Unicode characters (emojis)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
 )
+# Set UTF-8 encoding for the stream handler
+for handler in logging.root.handlers:
+    if isinstance(handler, logging.StreamHandler):
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s"))
+        if hasattr(handler, 'stream'):
+            handler.stream.reconfigure(encoding='utf-8')
 logger = logging.getLogger(__name__)
 
 # Setup file-based logging for server logs
@@ -253,8 +264,12 @@ def create_app() -> Flask:
     from .api.auth_config import auth_config_bp
     from .api.security import security_bp
     from .api.system import system_bp
-    from .api.email_scheduling import email_bp, scheduler_bp, initialize_email_handlers, get_task_scheduler
+    from .api.email_scheduling import email_bp, scheduler_bp, initialize_email_handlers, get_task_scheduler, setup_email_scheduler
+    from .api.email_extra import extra_email_bp
+    from .api.email_storage import storage_email_bp
     from .api.voice import voice_bp
+    from .api.social_media import social_media_bp
+    from .api.whatsapp_web import whatsapp_web_bp
 
     app.register_blueprint(chat_bp)
     app.register_blueprint(multiperson_bp)
@@ -268,12 +283,24 @@ def create_app() -> Flask:
     app.register_blueprint(security_bp)
     app.register_blueprint(system_bp)
     app.register_blueprint(email_bp)
+    app.register_blueprint(extra_email_bp)
+    app.register_blueprint(storage_email_bp)
     app.register_blueprint(scheduler_bp)
     app.register_blueprint(voice_bp)
+    app.register_blueprint(social_media_bp)
+    app.register_blueprint(whatsapp_web_bp)
+
+    # Initialize real-time WebSocket support for emails and WhatsApp
+    from .socket_events import init_socketio
+    socketio = init_socketio(app)
+    app.socketio = socketio  # Attach to app for retrieval in run.py
+    logger.info("✓ WebSocket (SocketIO) initialized for real-time updates")
 
     # Seed default roles + admin user + restricted commands.
     with app.app_context():
         seed_defaults()
+        # Setup automatic email checking on startup
+        setup_email_scheduler()
 
     @app.route("/api")
     def api_root():

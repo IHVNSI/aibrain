@@ -25,8 +25,8 @@ def setup_log_file_handler():
         if isinstance(handler, logging.FileHandler) and handler.baseFilename == LOG_FILE:
             return
     
-    # Create file handler
-    file_handler = logging.FileHandler(LOG_FILE)
+    # Create file handler with UTF-8 encoding for Unicode support
+    file_handler = logging.FileHandler(LOG_FILE, encoding='utf-8')
     file_handler.setLevel(logging.DEBUG)
     
     # Create formatter

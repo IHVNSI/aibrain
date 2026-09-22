@@ -5,6 +5,11 @@ Flask-SQLAlchemy>=3.1
 python-dotenv>=1.0
 SQLAlchemy>=2.0
 
+# Real-time WebSocket support (for email and WhatsApp listening)
+flask-socketio>=5.3
+python-socketio>=5.9
+python-engineio>=4.7
+
 # Text-to-SQL engine (0.7.x API: vanna.base / vanna.chromadb modules)
 vanna>=0.7.5,<0.8
 
@@ -47,7 +52,7 @@ elevenlabs>=0.2.25
 
 # Audio processing and manipulation
 pydub>=0.25.1  # Audio file manipulation (MP3, WAV, OGG, etc.)
-waveform>=0.0.4  # Waveform analysis
+waveform==0.0.1
 # Database drivers
 psycopg2-binary>=2.9
 PyMySQL>=1.1
@@ -73,3 +78,8 @@ email-validator>=2.0  # Email validation
 # Task scheduling - Schedule tasks with natural language
 APScheduler>=3.10  # Cron-like job scheduling
 python-dateutil>=2.8  # Date/time utilities
+
+# WhatsApp Web automation - Login and message without official API
+selenium>=4.15  # Browser automation for WhatsApp Web
+webdriver-manager>=4.0  # Automatic WebDriver management
+pyqrcode>=1.2.1  # QR code generation for display
