@@ -95,7 +95,7 @@ def get_inbox_emails():
         }), 500
 
 
-@storage_email_bp.route('/folder/<folder_name>', methods=['GET'])
+@storage_email_bp.route('/folder/<path:folder_name>', methods=['GET'])
 @require_auth
 def get_folder_emails(folder_name):
     """
@@ -255,6 +255,51 @@ def get_sent_emails():
         }), 500
 
 
+@storage_email_bp.route('/sent/<int:email_id>', methods=['DELETE'])
+@require_auth
+def delete_sent_email(email_id):
+    """
+    Delete a sent email by ID.
+    
+    Args:
+        email_id: ID of sent email to delete
+    
+    Returns:
+        {
+            "success": true,
+            "message": "Email deleted successfully",
+            "deleted_id": 123
+        }
+    """
+    try:
+        email = SentEmail.query.get(email_id)
+        
+        if not email:
+            return jsonify({
+                "success": False,
+                "error": "Sent email not found"
+            }), 404
+        
+        db.session.delete(email)
+        db.session.commit()
+        
+        logger.info(f"Deleted sent email ID {email_id}: {email.subject}")
+        
+        return jsonify({
+            "success": True,
+            "message": "Email deleted successfully",
+            "deleted_id": email_id
+        })
+    
+    except Exception as e:
+        logger.error(f"Error deleting sent email: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 @storage_email_bp.route('/search', methods=['GET'])
 @require_auth
 def search_emails():
@@ -396,6 +441,197 @@ def mark_email_read(email_id):
     
     except Exception as e:
         logger.error(f"Error marking email as read: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@storage_email_bp.route('/delete-bulk', methods=['POST'])
+@require_auth
+def delete_bulk_stored_emails():
+    """
+    Delete multiple stored emails in bulk.
+    
+    Request body:
+        {
+            "email_ids": [1, 2, 3, ...]
+        }
+    
+    Returns:
+        {
+            "success": true,
+            "deleted_count": 3,
+            "message": "Deleted 3 emails"
+        }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        email_ids = data.get('email_ids', [])
+        
+        if not email_ids or not isinstance(email_ids, list):
+            return jsonify({
+                "success": False,
+                "error": "email_ids must be a non-empty list"
+            }), 400
+        
+        # Limit to 1000 emails per request to prevent abuse
+        if len(email_ids) > 1000:
+            return jsonify({
+                "success": False,
+                "error": "Cannot delete more than 1000 emails at once"
+            }), 400
+        
+        # Delete emails by IDs
+        deleted_count = StoredEmail.query.filter(StoredEmail.id.in_(email_ids)).delete()
+        db.session.commit()
+        
+        logger.info(f"Bulk deleted {deleted_count} stored emails: {email_ids}")
+        
+        return jsonify({
+            "success": True,
+            "deleted_count": deleted_count,
+            "message": f"Deleted {deleted_count} email(s) successfully"
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"Error bulk deleting stored emails: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@storage_email_bp.route('/sent/delete-bulk', methods=['POST'])
+@require_auth
+def delete_bulk_sent_emails():
+    """
+    Delete multiple sent emails in bulk.
+    
+    Request body:
+        {
+            "email_ids": [1, 2, 3, ...]
+        }
+    
+    Returns:
+        {
+            "success": true,
+            "deleted_count": 3,
+            "message": "Deleted 3 emails"
+        }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        email_ids = data.get('email_ids', [])
+        
+        if not email_ids or not isinstance(email_ids, list):
+            return jsonify({
+                "success": False,
+                "error": "email_ids must be a non-empty list"
+            }), 400
+        
+        # Limit to 1000 emails per request to prevent abuse
+        if len(email_ids) > 1000:
+            return jsonify({
+                "success": False,
+                "error": "Cannot delete more than 1000 emails at once"
+            }), 400
+        
+        # Delete emails by IDs
+        deleted_count = SentEmail.query.filter(SentEmail.id.in_(email_ids)).delete()
+        db.session.commit()
+        
+        logger.info(f"Bulk deleted {deleted_count} sent emails: {email_ids}")
+        
+        return jsonify({
+            "success": True,
+            "deleted_count": deleted_count,
+            "message": f"Deleted {deleted_count} email(s) successfully"
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"Error bulk deleting sent emails: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@storage_email_bp.route('/debug/test-fetch', methods=['GET'])
+@require_auth
+def debug_test_fetch():
+    """
+    DEBUG ENDPOINT: Test email fetching directly from IMAP server.
+    Shows what emails are available in Gmail INBOX.
+    """
+    try:
+        from ..email_config import EmailConfig
+        
+        logger.info("DEBUG: Testing email fetch...")
+        
+        email_service = EmailConfig.get_email_service()
+        if not email_service:
+            return jsonify({
+                "success": False,
+                "error": "Email service not configured"
+            }), 500
+        
+        # Test connection
+        try:
+            email_service.connect()
+            logger.info("DEBUG: Connection successful")
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": f"Connection failed: {str(e)}"
+            }), 500
+        
+        # Get folder list
+        folders = email_service.get_folder_list()
+        logger.info(f"DEBUG: Found {len(folders)} folders: {folders}")
+        
+        # Try to fetch from INBOX
+        emails = email_service.get_all_emails(folder='INBOX', limit=50)
+        logger.info(f"DEBUG: Fetched {len(emails)} emails from INBOX")
+        
+        # Count stored emails
+        stored_count = StoredEmail.query.count()
+        logger.info(f"DEBUG: {stored_count} emails stored in database")
+        
+        email_service.disconnect()
+        
+        return jsonify({
+            "success": True,
+            "folders_found": len(folders),
+            "inbox_emails_count": len(emails),
+            "inbox_sample": emails[:3] if emails else [],
+            "stored_in_db": stored_count
+        })
+    
+    except Exception as e:
+        logger.error(f"DEBUG: Test fetch failed: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+        
+        # Delete emails by IDs
+        deleted_count = SentEmail.query.filter(SentEmail.id.in_(email_ids)).delete()
+        db.session.commit()
+        
+        logger.info(f"Bulk deleted {deleted_count} sent emails: {email_ids}")
+        
+        return jsonify({
+            "success": True,
+            "deleted_count": deleted_count,
+            "message": f"Deleted {deleted_count} email(s) successfully"
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"Error bulk deleting sent emails: {e}", exc_info=True)
+        db.session.rollback()
         return jsonify({
             "success": False,
             "error": str(e)

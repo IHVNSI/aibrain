@@ -150,6 +150,29 @@ def create_app() -> Flask:
             else:
                 logger.info("✅ assigned_branches column already exists in users table")
             
+            # Evolve auto_reply_settings table - add use_llm and auto_send columns if missing
+            try:
+                auto_reply_cols = db.session.execute(text("PRAGMA table_info(auto_reply_settings)")).fetchall()
+                auto_reply_col_names = {c[1] for c in auto_reply_cols}
+                
+                if "use_llm" not in auto_reply_col_names:
+                    logger.info("➕ Adding use_llm column to auto_reply_settings table...")
+                    db.session.execute(text("ALTER TABLE auto_reply_settings ADD COLUMN use_llm BOOLEAN DEFAULT 1"))
+                    db.session.commit()
+                    logger.info("✅ Added use_llm column to auto_reply_settings table")
+                else:
+                    logger.info("✅ use_llm column already exists in auto_reply_settings table")
+                
+                if "auto_send" not in auto_reply_col_names:
+                    logger.info("➕ Adding auto_send column to auto_reply_settings table...")
+                    db.session.execute(text("ALTER TABLE auto_reply_settings ADD COLUMN auto_send BOOLEAN DEFAULT 0"))
+                    db.session.commit()
+                    logger.info("✅ Added auto_send column to auto_reply_settings table")
+                else:
+                    logger.info("✅ auto_send column already exists in auto_reply_settings table")
+            except Exception as ars_error:
+                logger.warning(f"⚠️  Schema evolution for auto_reply_settings: {ars_error}")
+            
             # Initialize table-role access if needed
             from .models import TableRoleAccess, Role
             roles_exist = Role.query.count() > 0
@@ -251,12 +274,21 @@ def create_app() -> Flask:
         except Exception as e:
             logger.warning(f"⚠️  Could not initialize AI Context: {e}")
             db.session.rollback()
+        
+        # Check for database changes and clean old artifacts if needed
+        try:
+            from .db_migration_manager import initialize_database_migration
+            initialize_database_migration(app, db.session)
+        except Exception as e:
+            logger.error(f"❌ Database migration check failed: {e}")
+            db.session.rollback()
 
     # Register blueprints
     from .api.chat import chat_bp
     from .api.multiperson_chat import multiperson_bp
     from .api.conversations import conversations_bp
     from .api.settings import settings_bp
+    from .api.app_settings import app_settings_bp
     from .api.training import training_bp
     from .api.cache import cache_bp
     from .api.data_exchange import data_exchange_bp
@@ -267,6 +299,9 @@ def create_app() -> Flask:
     from .api.email_scheduling import email_bp, scheduler_bp, initialize_email_handlers, get_task_scheduler, setup_email_scheduler
     from .api.email_extra import extra_email_bp
     from .api.email_storage import storage_email_bp
+    from .api.email_sync_api import sync_bp
+    from .api.email_send import email_send_bp
+    from .api.schema_relationships import relationships_bp
     from .api.voice import voice_bp
     from .api.social_media import social_media_bp
     from .api.whatsapp_web import whatsapp_web_bp
@@ -275,6 +310,7 @@ def create_app() -> Flask:
     app.register_blueprint(multiperson_bp)
     app.register_blueprint(conversations_bp)
     app.register_blueprint(settings_bp)
+    app.register_blueprint(app_settings_bp)
     app.register_blueprint(training_bp)
     app.register_blueprint(cache_bp)
     app.register_blueprint(data_exchange_bp)
@@ -285,6 +321,9 @@ def create_app() -> Flask:
     app.register_blueprint(email_bp)
     app.register_blueprint(extra_email_bp)
     app.register_blueprint(storage_email_bp)
+    app.register_blueprint(sync_bp)
+    app.register_blueprint(email_send_bp)
+    app.register_blueprint(relationships_bp)
     app.register_blueprint(scheduler_bp)
     app.register_blueprint(voice_bp)
     app.register_blueprint(social_media_bp)
@@ -299,8 +338,14 @@ def create_app() -> Flask:
     # Seed default roles + admin user + restricted commands.
     with app.app_context():
         seed_defaults()
-        # Setup automatic email checking on startup
-        setup_email_scheduler()
+        # Initialize automatic email checking and syncing
+        # Emails are downloaded periodically and stored in database
+        # Check interval is controlled by EMAIL_CHECK_INTERVAL in .env (default: 1 minute)
+        try:
+            setup_email_scheduler()
+            logger.info("✓ Email scheduler initialized successfully")
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to initialize email scheduler: {e}. Email syncing disabled.")
 
     @app.route("/api")
     def api_root():

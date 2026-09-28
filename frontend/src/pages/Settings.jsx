@@ -11,6 +11,7 @@ import SchedulerTab from './SchedulerTab'
 import AudioConfigPanel from '../components/AudioConfigPanel'
 import SocialMediaTab from '../components/SocialMediaTab'
 import WhatsAppWebTab from '../components/WhatsAppWebTab'
+import AppSettingsTab from '../components/AppSettingsTab'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import Swal from 'sweetalert2'
@@ -18,10 +19,11 @@ import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import {
   Cpu, Database, Layers, GraduationCap, MessagesSquare, Gauge,
-  Save, Loader, CheckCircle2, XCircle, Play, Trash2, RefreshCw, Upload, Pencil, X, Shield, Volume2, FileText, Download, Eye, Search, Copy, Terminal, Zap, Mic, Square, Mail, Clock, MessageCircle
+  Save, Loader, CheckCircle2, XCircle, Play, Trash2, RefreshCw, Upload, Pencil, X, Shield, Volume2, FileText, Download, Eye, Search, Copy, Terminal, Zap, Mic, Square, Mail, Clock, MessageCircle, Palette
 } from 'lucide-react'
 
 const BASE_TABS = [
+  { id: 'app-settings', label: 'App Settings', icon: Palette, adminOnly: true },
   { id: 'llm', label: 'LLM Config', icon: Cpu },
   { id: 'database', label: 'DB Config', icon: Database },
   { id: 'sqlite', label: 'SQLite DBMS', icon: Database },
@@ -113,6 +115,7 @@ export default function Settings() {
         })}
       </div>
 
+      {tab === 'app-settings' && <AppSettingsTab />}
       {tab === 'llm' && <LLMTab onChanged={refreshEngine} />}
       {tab === 'database' && <DatabaseConfigTab onChanged={refreshEngine} />}
       {tab === 'sqlite' && <SQLiteTab />}
@@ -408,6 +411,25 @@ function DatabaseTab({ onChanged }) {
     } catch (e) { setMsg({ type: 'error', text: handleApiError(e).message }) }
     finally { setBusy(false) }
   }
+  const refresh = async () => {
+    const confirmed = await confirmDeleteAction(
+      'This will disconnect from the old database and clear all Vanna training data, vector stores, and Python caches. Continue?'
+    )
+    if (!confirmed) return
+    
+    setBusy(true); setMsg(null)
+    try {
+      const { data } = await api.post('/api/settings/database/refresh', cfg)
+      if (data.success) {
+        setMsg({ type: 'success', text: '✓ Database refreshed! Old data cleared, Vanna retrained on new schema.' })
+        loadSourceDbInfo()
+        onChanged?.()
+      } else {
+        setMsg({ type: 'error', text: data.error || 'Refresh failed' })
+      }
+    } catch (e) { setMsg({ type: 'error', text: handleApiError(e).message }) }
+    finally { setBusy(false) }
+  }
 
   return (
     <div className="card w-full space-y-5">
@@ -536,6 +558,9 @@ function DatabaseTab({ onChanged }) {
         <button onClick={test} disabled={busy} className="btn-secondary flex items-center gap-1"><Play size={16} /> Test</button>
         <button onClick={save} disabled={busy} className="btn-primary flex items-center gap-1">
           {busy ? <Loader size={16} className="animate-spin" /> : <Save size={16} />} Save
+        </button>
+        <button onClick={refresh} disabled={busy} className="btn-secondary flex items-center gap-1" title="Refresh: Reconnect to DB, clear old Vanna data and vector stores">
+          {busy ? <Loader size={16} className="animate-spin" /> : <RefreshCw size={16} />} Refresh
         </button>
       </div>
     </div>
@@ -1039,7 +1064,7 @@ function SQLiteTab() {
             {tables.map((t) => <option key={t.table} value={t.table}>{t.table} ({t.row_count})</option>)}
           </select>
           <button onClick={() => { loadTables(); loadRows(selectedTable, rowsState.page) }} className="btn-secondary text-xs">Refresh</button>
-          <button onClick={deleteSelectedRows} disabled={!selectedRowIds.length || busy} className="btn-secondary text-xs text-red-600 border-red-200 hover:bg-red-50">
+          <button onClick={deleteSelectedRows} disabled={!selectedRowIds.length || busy} className="btn-secondary text-xs">
             Delete selected ({selectedRowIds.length})
           </button>
         </div>
@@ -2339,7 +2364,7 @@ function DocCodeBlock({ children, className = '' }) {
     <div className="not-prose rounded-lg overflow-hidden border border-gray-200 my-3 w-full min-w-0">
       <div className="flex items-center justify-between px-3 py-2 bg-gray-800 text-gray-100 text-[11px]">
         <span className="uppercase tracking-wide opacity-80">{lang}</span>
-        <button onClick={copy} className="px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600 text-white">
+        <button onClick={copy} className="px-2 py-0.5 rounded text-gray-100 hover:bg-gray-700 transition">
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
@@ -2959,14 +2984,14 @@ function AudioTab() {
           <button
             onClick={startVoiceTraining}
             disabled={isTrainingVoice}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2"
+            className="btn-primary w-full flex items-center justify-center gap-2"
           >
             <Mic size={16} /> Record Voice Sample
           </button>
         ) : (
           <button
             onClick={stopVoiceTraining}
-            className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2 animate-pulse"
+            className="btn-danger w-full flex items-center justify-center gap-2 animate-pulse"
           >
             <Square size={16} /> Stop Recording
           </button>
@@ -3301,7 +3326,7 @@ function CacheTab() {
           <button 
             onClick={handleRestartServer}
             disabled={restarting}
-            className="btn-primary flex items-center gap-2 whitespace-nowrap bg-amber-600 hover:bg-amber-700 disabled:opacity-50"
+            className="btn-primary flex items-center gap-2 whitespace-nowrap disabled:opacity-50"
           >
             {restarting ? (
               <>

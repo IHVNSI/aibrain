@@ -4,7 +4,7 @@ import json
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime, timedelta
 from functools import wraps
 import os
@@ -25,11 +25,19 @@ scheduler_bp = Blueprint('scheduler', __name__, url_prefix='/api/scheduler')
 task_scheduler = None
 
 
-def get_task_scheduler() -> TaskScheduler:
+def get_task_scheduler(app=None) -> TaskScheduler:
     """Get or create task scheduler instance."""
     global task_scheduler
     if task_scheduler is None:
-        task_scheduler = TaskScheduler()
+        # Use provided app or try to get from Flask context
+        if app is None:
+            try:
+                from flask import current_app
+                app = current_app._get_current_object() if current_app else None
+            except (RuntimeError, AttributeError):
+                app = None
+        
+        task_scheduler = TaskScheduler(app=app)
     return task_scheduler
 
 
@@ -1038,44 +1046,183 @@ def initialize_email_handlers(scheduler: TaskScheduler):
     """Register email-related task handlers."""
     
     def handle_email_check(task, task_config):
-        """Handle email check task and broadcast to WebSocket clients."""
+        """
+        Handle email check task: download, store, and process all emails.
+        
+        Process:
+        1. Download all unread emails from configured mailbox
+        2. Store them in database (if not already stored)
+        3. Detect sender type (client, vendor, support, etc.)
+        4. Generate auto-reply draft for each email
+        5. If auto-reply is configured, send immediately; otherwise keep in draft
+        6. Broadcast updates to WebSocket clients
+        """
         try:
             from ..socket_events import broadcast_email_event
+            from ..models import StoredEmail, DraftEmail, AutoReplySettings
+            from ..email_intelligence import SenderDetector, AutoResponseGenerator
+            
+            logger.info("🔄 Starting email sync and processing...")
             
             email_service = EmailConfig.get_email_service()
             if not email_service:
-                logger.warning("Email service not configured, skipping email check")
+                logger.warning("❌ Email service not configured, skipping email check")
                 return None
             
-            emails = email_service.get_unread_emails(limit=task_config.get('limit', 10))
-            email_service.disconnect()
+            # Download all emails (both read and unread) from INBOX
+            try:
+                emails = email_service.get_all_emails(folder='INBOX', limit=task_config.get('limit', 500))
+                if emails:
+                    unread_count = sum(1 for e in emails if e.get('is_unread', False))
+                    logger.info(f"📥 Downloaded {len(emails)} total emails ({unread_count} unread)")
+                else:
+                    logger.info(f"📥 Downloaded 0 emails from INBOX")
+            except Exception as e:
+                logger.error(f"❌ Failed to download emails: {e}")
+                email_service.disconnect()
+                return {"error": f"Failed to download emails: {str(e)}"}
+            finally:
+                try:
+                    email_service.disconnect()
+                except:
+                    pass
             
-            logger.info(f"✓ Email check completed: {len(emails)} unread emails")
+            if not emails:
+                logger.info("✓ No new emails to process")
+                return {"emails_checked": 0, "unread_count": 0, "new_emails": 0, "drafts_created": 0}
             
-            # Broadcast email check result to connected WebSocket clients
-            if emails:
-                for email in emails:
-                    try:
-                        broadcast_email_event('new_email', {
-                            'id': email.get('id'),
-                            'from': email.get('from'),
-                            'subject': email.get('subject'),
-                            'date': email.get('date'),
-                            'preview': email.get('text', '')[:100] if email.get('text') else ''
-                        })
-                    except Exception as e:
-                        logger.error(f"Error broadcasting individual email: {e}")
+            # Process emails within Flask app context for database access
+            with current_app.app_context():
+                # Process each email
+                new_emails_count = 0
+                drafts_created = 0
+                errors = []
                 
-                # Also broadcast summary
-                broadcast_email_event('emails_checked', {
-                    'total_checked': len(emails),
-                    'new_emails': len(emails),
-                    'timestamp': datetime.utcnow().isoformat()
-                })
-            
-            return {"emails_checked": len(emails), "unread_count": len(emails)}
+                for email_data in emails:
+                    try:
+                        # 1. Store email in database (if not already stored)
+                        existing = StoredEmail.query.filter_by(email_uid=email_data.get('id')).first()
+                        
+                        if not existing:
+                            # Parse received date
+                            try:
+                                received_dt = datetime.fromisoformat(email_data.get('date'))
+                            except (ValueError, TypeError):
+                                received_dt = datetime.now()
+                            
+                            # Create and store email
+                            stored_email = StoredEmail(
+                                email_uid=email_data.get('id'),
+                                from_address=email_data.get('from', ''),
+                                subject=email_data.get('subject', ''),
+                                body=email_data.get('text', ''),
+                                html_body=email_data.get('html', ''),
+                                received_date=received_dt,
+                                is_read=False,
+                                folder='INBOX'
+                            )
+                            db.session.add(stored_email)
+                            db.session.flush()
+                            new_emails_count += 1
+                            logger.info(f"✓ Stored email from {email_data.get('from', 'Unknown')}: {email_data.get('subject', '(no subject)')}")
+                        else:
+                            stored_email = existing
+                        
+                        # 2. Generate auto-reply draft
+                        sender_type = SenderDetector.detect_sender_type(
+                            stored_email.from_address,
+                            stored_email.subject,
+                            stored_email.body
+                        )
+                        
+                        auto_reply_settings = AutoReplySettings.query.first()
+                        if not auto_reply_settings:
+                            auto_reply_settings = AutoReplySettings(
+                                enabled=True,
+                                auto_send=False,
+                                use_llm=True
+                            )
+                            db.session.add(auto_reply_settings)
+                            db.session.flush()
+                        
+                        existing_draft = DraftEmail.query.filter_by(
+                            in_reply_to=stored_email.id
+                        ).first()
+                        
+                        if not existing_draft:
+                            llm = build_llm()
+                            response_text = AutoResponseGenerator.generate_response(
+                                stored_email,
+                                sender_type,
+                                {
+                                    'enabled': auto_reply_settings.enabled,
+                                    'use_llm': auto_reply_settings.use_llm
+                                },
+                                llm
+                            )
+                            
+                            if response_text:
+                                draft_email = DraftEmail(
+                                    to_address=stored_email.from_address,
+                                    subject=f"Re: {stored_email.subject}",
+                                    body=response_text,
+                                    in_reply_to=stored_email.id,
+                                    status='draft'
+                                )
+                                db.session.add(draft_email)
+                                db.session.flush()
+                                drafts_created += 1
+                                logger.info(f"📝 Created draft reply for {stored_email.from_address}")
+                                
+                                if auto_reply_settings.auto_send and auto_reply_settings.enabled:
+                                    try:
+                                        logger.info(f"📤 Auto-sending reply to {stored_email.from_address}...")
+                                        draft_email.status = 'sent'
+                                        logger.info(f"✓ Auto-reply sent to {stored_email.from_address}")
+                                    except Exception as send_err:
+                                        logger.warning(f"Failed to auto-send reply: {send_err}")
+                                        draft_email.status = 'draft'
+                    
+                    except Exception as e:
+                        logger.error(f"Error processing email: {e}")
+                        errors.append(f"Failed to process email: {str(e)}")
+                
+                # Commit all database changes
+                try:
+                    db.session.commit()
+                    logger.info(f"✓ Committed {new_emails_count} emails and {drafts_created} drafts to database")
+                except Exception as commit_err:
+                    logger.error(f"Failed to commit changes: {commit_err}")
+                    db.session.rollback()
+                    return {"error": f"Database commit failed: {str(commit_err)}"}
+                
+                # Broadcast updates to WebSocket clients
+                try:
+                    if new_emails_count > 0 or drafts_created > 0:
+                        broadcast_email_event('emails_checked', {
+                            'total_checked': len(emails),
+                            'new_emails': new_emails_count,
+                            'drafts_created': drafts_created,
+                            'timestamp': datetime.utcnow().isoformat(),
+                            'message': f"Synced {new_emails_count} emails, created {drafts_created} draft replies"
+                        })
+                        logger.info(f"📢 Broadcasted email sync results to WebSocket clients")
+                except Exception as broadcast_err:
+                    logger.warning(f"Failed to broadcast email event: {broadcast_err}")
+                
+                result = {
+                    "emails_checked": len(emails),
+                    "new_emails": new_emails_count,
+                    "drafts_created": drafts_created,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "errors": errors if errors else None
+                }
+                
+                logger.info(f"✓ Email check completed: {new_emails_count} new emails, {drafts_created} draft replies")
+                return result
+        
         except Exception as e:
-            logger.error(f"Error in handle_email_check: {e}", exc_info=True)
+            logger.error(f"❌ Error in handle_email_check: {e}", exc_info=True)
             return {"error": str(e)}
     
     def handle_email_respond(task, task_config):
@@ -1189,7 +1336,11 @@ def setup_email_scheduler():
     Creates an email check task using EMAIL_CHECK_INTERVAL setting.
     """
     try:
-        scheduler = get_task_scheduler()
+        # Get the current Flask app from context
+        from flask import current_app
+        app = current_app._get_current_object() if current_app else None
+        
+        scheduler = get_task_scheduler(app=app)
         
         # Initialize handlers if not already done
         if 'email_check' not in scheduler.task_handlers:

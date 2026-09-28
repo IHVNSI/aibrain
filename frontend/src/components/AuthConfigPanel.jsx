@@ -774,7 +774,7 @@ export default function AuthConfigPanel() {
           <button
             type="submit"
             disabled={passwordChanging || saving || testing}
-            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white font-medium py-2 px-4 rounded-md transition flex items-center justify-center gap-2"
+            className="btn-primary w-full flex items-center justify-center gap-2"
           >
             <Lock size={18} />
             {passwordChanging ? 'Changing Password...' : 'Change Password'}
@@ -787,7 +787,7 @@ export default function AuthConfigPanel() {
         <button
           onClick={handleVerifyConfig}
           disabled={saving || testing}
-          className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-900 font-medium rounded-md transition flex items-center gap-2"
+          className="btn-secondary flex items-center gap-2"
         >
           <TestTube size={18} />
           Verify Configuration
@@ -795,7 +795,7 @@ export default function AuthConfigPanel() {
         <button
           onClick={handleSaveConfig}
           disabled={saving || testing}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium rounded-md transition flex items-center gap-2"
+          className="btn-primary flex items-center gap-2"
         >
           <Save size={18} />
           Save Configuration

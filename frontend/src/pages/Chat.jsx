@@ -538,7 +538,7 @@ export default function Chat() {
           </button>
           <button
             onClick={() => setSidebarOpen((prev) => !prev)}
-            className="md:hidden ml-2 p-2 hover:bg-gray-100 rounded transition"
+            className="md:hidden ml-2 p-2 rounded transition"
             title={sidebarOpen ? 'Hide history' : 'Show history'}
           >
             <X size={16} className="text-gray-600" />
@@ -577,7 +577,7 @@ export default function Chat() {
                         setEditingConvId(null)
                         setEditingTitle('')
                       }}
-                      className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      className="text-xs px-2 py-1 rounded text-gray-700"
                     >
                       Cancel
                     </button>
@@ -587,7 +587,7 @@ export default function Chat() {
                 <div
                   onClick={() => openConversation(c.id)}
                   className={`group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer text-sm ${
-                    c.id === conversationId ? 'bg-brand-50 text-brand-700' : 'hover:bg-gray-100 text-gray-700'
+                    c.id === conversationId ? 'bg-brand-50 text-brand-700' : 'text-gray-700'
                   }`}
                 >
                   <span className="truncate flex-1">{c.title}</span>
@@ -623,7 +623,7 @@ export default function Chat() {
         <div className="bg-white border-b border-gray-200 px-3 py-2">
           <button
             onClick={() => setSidebarOpen((prev) => !prev)}
-            className="p-2 hover:bg-gray-100 rounded transition hidden md:block"
+            className="p-2 rounded transition hidden md:block"
             title={sidebarOpen ? 'Hide history' : 'Show history'}
           >
             {sidebarOpen ? <Minus size={16} className="text-gray-600" /> : <Menu size={16} className="text-gray-600" />}
@@ -702,7 +702,7 @@ export default function Chat() {
                     <select
                       value={audioSettings.voiceInputLanguage}
                       onChange={(e) => changeVoiceInputLanguage(e.target.value)}
-                      className="text-xs px-2 py-1 border border-gray-300 rounded bg-white hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                     >
                       {VOICE_INPUT_LANGUAGES.map((lang) => (
                         <option key={lang.code} value={lang.code}>
@@ -790,7 +790,7 @@ export default function Chat() {
             <button
               onClick={toggleListening}
               disabled={!canVoice}
-              className={`btn-secondary flex items-center gap-1 flex-shrink-0 ${listening ? 'bg-red-50 text-red-600 border-red-200' : ''}`}
+              className="btn-secondary flex items-center gap-1 flex-shrink-0"
               title={canVoice ? (listening ? 'Click to stop listening and send' : 'Voice prompt') : 'Voice input not supported'}
             >
               {listening ? <MicOff size={16} /> : <Mic size={16} />}
@@ -1071,11 +1071,11 @@ function ResultViews({ viz, columns, rows, rowCount }) {
       {canChart && (
         <div className="flex items-center gap-1 mb-2">
           <button onClick={() => setView('chart')}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs ${view === 'chart' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs ${view === 'chart' ? 'bg-brand-600 text-white' : 'text-gray-600'}`}>
             <BarChart3 size={13} /> Chart
           </button>
           <button onClick={() => setView('table')}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs ${view === 'table' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs ${view === 'table' ? 'bg-brand-600 text-white' : 'text-gray-600'}`}>
             <TableIcon size={13} /> Table
           </button>
           {view === 'chart' && (
@@ -1284,7 +1284,7 @@ function DataTable({ columns, rows, rowCount }) {
             <BarChart3 size={12} /> Convert to chart
           </button>
           <details className="text-[11px] relative">
-            <summary className="cursor-pointer px-2 py-1 hover:bg-gray-100 rounded">
+            <summary className="cursor-pointer px-2 py-1 rounded">
               <Eye size={12} className="inline mr-1" /> Columns
             </summary>
             <div className="absolute mt-1 bg-white border border-gray-200 rounded-lg p-3 shadow-lg space-y-2 z-10 max-h-48 overflow-y-auto">
@@ -1496,7 +1496,7 @@ function DataTable({ columns, rows, rowCount }) {
           <button
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            className="px-2 py-1 rounded border border-gray-300 disabled:opacity-50 hover:bg-gray-100"
+            className="px-2 py-1 rounded border border-gray-300 disabled:opacity-50"
           >
             Prev
           </button>
@@ -1506,7 +1506,7 @@ function DataTable({ columns, rows, rowCount }) {
           <button
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            className="px-2 py-1 rounded border border-gray-300 disabled:opacity-50 hover:bg-gray-100"
+            className="px-2 py-1 rounded border border-gray-300 disabled:opacity-50"
           >
             Next
           </button>

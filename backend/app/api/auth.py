@@ -823,66 +823,23 @@ def logout():
 
 
 def seed_defaults():
-    """Create default roles + an admin user if none exist (idempotent).
+    """Create only the admin user if it doesn't exist (idempotent).
     
-    Roles created:
-    - Admin: Full access within entity (workspace/branch/parent company)
-    - Support: Support staff with table-level access control
-    - Central Admin: Administrator across all branches in parent company
-    - Regional Admin: Administrator for specific branches
-    - Branch Admin: Administrative access within a single branch
-    - Branch Support: Support staff within a branch
-    - User: Standard user with limited/read-only access
+    NOTE: Only the admin account is created. All other data (roles, guest user, etc.)
+    must be created manually via database migration or through the application UI.
     
-    NOTE: Admin credentials are managed exclusively through the database.
+    Admin credentials are managed exclusively through the database.
     """
     try:
-        # System roles for all entity types
-        system_roles = [
-            ("Admin", "Full access within entity (workspace/branch/parent company)", True),
-            ("Support", "Support staff with table-level access control", False),
-            ("Central Admin", "Administrator across all branches in parent company", True),
-            ("Regional Admin", "Administrator for specific branches within parent company", True),
-            ("Branch Admin", "Administrative access within a single branch", True),
-            ("Branch Support", "Support staff within a branch", False),
-            ("User", "Standard user (company/branch scoped)", False),
-        ]
-        
-        for role_name, description, is_admin in system_roles:
-            if not Role.query.filter_by(name=role_name).first():
-                db.session.add(Role(
-                    name=role_name,
-                    description=description,
-                    is_admin=is_admin,
-                    is_system_role=True
-                ))
-                logger.info(f"✓ Created system role: {role_name}")
-        
-        db.session.flush()
-
-        # Assign default "User" role to new users if not already assigned
-        user_role = Role.query.filter_by(name="User").first()
-        if not user_role:
-            user_role = Role(name="User", description="Standard user (company/branch scoped)",
-                           is_admin=False, is_system_role=True)
-            db.session.add(user_role)
-            db.session.flush()
-        
-        # Ensure admin role exists
+        # Ensure admin user exists
         admin_user = User.query.filter_by(username="admin").first()
-        
-        admin_role = Role.query.filter_by(name="Admin").first()
-        if not admin_role:
-            admin_role = Role(name="Admin", description="Full access within entity",
-                            is_admin=True, is_system_role=True)
-            db.session.add(admin_role)
-            db.session.flush()
         
         if admin_user:
             admin_user.is_active = True
             logger.info("✓ Admin user exists and is active")
+            db.session.commit()
         else:
-            # Create minimal admin user if doesn't exist
+            # Create admin user if it doesn't exist
             # NOTE: Password must be set via database migration or reset script
             admin_user = User(
                 username="admin",
@@ -891,37 +848,32 @@ def seed_defaults():
                 first_name="Admin", is_active=True,
             )
             db.session.add(admin_user)
-            db.session.flush()
+            db.session.commit()
             logger.warning("⚠️  Created default admin user. Please set password via database migration or reset script.")
-        
-        # Ensure admin user has Admin role
-        existing_role = UserRole.query.filter_by(user_id=admin_user.id, role_id=admin_role.id).first()
-        if not existing_role:
-            db.session.add(UserRole(user_id=admin_user.id, role_id=admin_role.id))
-            logger.info("✓ Added Admin role to admin user")
-
-        if not User.query.filter_by(email="guest@guest.com").first():
-            guest = User(
-                username="guest", email="guest@guest.com",
-                password_hash=hash_password("Guest123"),
-                first_name="Guest", is_active=True,
-            )
-            db.session.add(guest)
-            db.session.flush()
-            if user_role:
-                # Check if role assignment already exists
-                existing_role = UserRole.query.filter_by(user_id=guest.id, role_id=user_role.id).first()
-                if not existing_role:
-                    db.session.add(UserRole(user_id=guest.id, role_id=user_role.id))
-            logger.info("👤 Seeded guest user (guest@guest.com / Guest123)")
-
-        # Seed default restricted SQL commands (Security tab).
-        defaults = ["DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "CREATE", "TRUNCATE"]
-        for cmd in defaults:
-            if not RestrictedSQLCommand.query.filter_by(command=cmd).first():
-                db.session.add(RestrictedSQLCommand(command=cmd, is_blocked=True,
-                                                    description="Destructive command (blocked)"))
-        db.session.commit()
+    
     except Exception as exc:  # noqa: BLE001
         logger.warning(f"seed_defaults failed: {exc}")
         db.session.rollback()
+
+
+def seed_restricted_commands():
+    """
+    Manually seed default restricted SQL commands from Security UI.
+    
+    This function is deprecated. Command restrictions should be configured
+    via the Security UI tab (RestrictedSQLCommand model) and restricted_keywords setting.
+    
+    This is NOT called automatically on startup anymore.
+    
+    Usage:
+        from app.api.auth import seed_restricted_commands
+        seed_restricted_commands()
+    """
+    try:
+        logger.info("⚙️  Skipping seed_restricted_commands - use Security UI tab to configure restrictions")
+        return {"success": True, "message": "Deprecated - configure restrictions via Security UI tab"}
+    
+    except Exception as exc:
+        logger.error(f"seed_restricted_commands failed: {exc}")
+        db.session.rollback()
+        return {"success": False, "error": str(exc)}

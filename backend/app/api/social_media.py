@@ -286,7 +286,7 @@ def generate_response(account: SocialMediaAccount, msg: SocialMediaMessage) -> s
         system_instructions = ""
         
         if ai_context:
-            system_instructions = ai_context.system_prompt or ""
+            system_instructions = ai_context.system_instructions or ""
         else:
             system_instructions = "You are a helpful and professional assistant. Respond to the user's request."
         
@@ -303,11 +303,9 @@ def generate_response(account: SocialMediaAccount, msg: SocialMediaMessage) -> s
         # Get security policies
         security_context = ""
         if account.use_security_policies:
-            security_settings = SecuritySetting.query.filter_by(enabled=True).all()
-            if security_settings:
-                security_context = "\n\nSecurity & Policy Guidelines to follow:"
-                for setting in security_settings:
-                    security_context += f"\n- {setting.name}: {setting.description or 'N/A'}"
+            security_settings = SecuritySetting.query.first()
+            if security_settings and security_settings.sql_banned_keywords:
+                security_context = f"\n\nSecurity & Policy Guidelines to follow:\n- Banned SQL keywords: {security_settings.sql_banned_keywords}"
         
         # Build prompt
         prompt = f"""You are assisting via {account.channel_type.upper()} ({account.account_name}).

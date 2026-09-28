@@ -103,6 +103,9 @@ export default function AIContextTab() {
     { id: 'business', label: 'Business Rules', field: 'business_rules', description: 'Business logic and constraints' },
     { id: 'isolation', label: 'Data Isolation', field: 'data_isolation_rules', description: 'Multi-tenant data filtering rules' },
     { id: 'vocab', label: 'Vocabulary', field: 'vocabulary', description: 'Terminology definitions' },
+    { id: 'email', label: 'Email Response Rules', field: 'email_response_rules', description: 'Specific rules for email interactions and auto-replies' },
+    { id: 'whatsapp', label: 'WhatsApp Response Rules', field: 'whatsapp_response_rules', description: 'Specific rules for WhatsApp messaging' },
+    { id: 'parent_app', label: 'Parent App Description', field: 'parent_app_description', description: 'Describe the structure, nature, and routes of your application' },
   ]
 
   return (
@@ -213,6 +216,9 @@ export default function AIContextTab() {
             <li>• <strong>Business Rules:</strong> Constraints and business logic (optional)</li>
             <li>• <strong>Data Isolation:</strong> Multi-tenant filtering rules (optional)</li>
             <li>• <strong>Vocabulary:</strong> Terminology definitions for consistent language (optional)</li>
+            <li>• <strong>Email Response Rules:</strong> Specific instructions for email auto-replies and interactions (optional)</li>
+            <li>• <strong>WhatsApp Response Rules:</strong> Specific instructions for WhatsApp messaging (optional)</li>
+            <li>• <strong>Parent App Description:</strong> Describe your application's structure, nature, and routes so the AI understands the context (optional)</li>
             <li>• All changes are saved immediately and apply to all new AI responses</li>
             <li>• Previous conversations are not affected by context changes</li>
           </ul>

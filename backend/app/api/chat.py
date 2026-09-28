@@ -16,6 +16,7 @@ from .. import sql_guard
 from ..analysis import analyze
 from ..auth import require_auth, current_user_context
 from ..user_filter import UserQueryFilter
+from ..message_router import analyze_message_intent
 
 logger = logging.getLogger(__name__)
 chat_bp = Blueprint("chat", __name__, url_prefix="/api/chat")
@@ -251,17 +252,153 @@ def _answer_direct(llm, question: str):
     return (text or "").strip() or "I can help with that."
 
 
-def _execute(svc, sql):
-    """Run SQL; return (rows, columns, row_count, error)."""
+def _make_json_serializable(obj):
+    """Convert non-JSON-serializable objects (Timestamp, datetime, etc.) to strings."""
+    from datetime import datetime, date, time
     try:
-        df = svc.run_sql(sql)
-        if df is None:
-            return [], [], 0, None
-        cols = list(df.columns)
-        rows = df.head(500).to_dict(orient="records")
-        return rows, cols, int(len(df)), None
+        # Try to import pandas Timestamp if pandas is available
+        import pandas as pd
+        if isinstance(obj, (pd.Timestamp, datetime, date, time)):
+            return obj.isoformat() if hasattr(obj, 'isoformat') else str(obj)
+    except ImportError:
+        # pandas not available, fall through to datetime check
+        if isinstance(obj, (datetime, date, time)):
+            return obj.isoformat() if hasattr(obj, 'isoformat') else str(obj)
+    
+    # Handle other types
+    if hasattr(obj, '__dict__'):
+        return str(obj)
+    return obj
+
+
+def _convert_rows_to_serializable(rows):
+    """Convert all values in rows to JSON-serializable types."""
+    if not rows:
+        return rows
+    
+    serializable_rows = []
+    for row in rows:
+        serializable_row = {}
+        for key, value in row.items():
+            if value is None or isinstance(value, (str, int, float, bool)):
+                serializable_row[key] = value
+            else:
+                # Convert non-serializable types
+                serializable_row[key] = _make_json_serializable(value)
+        serializable_rows.append(serializable_row)
+    
+    return serializable_rows
+
+
+def _is_select_query(sql: str) -> bool:
+    """Detect if SQL is a SELECT query (returns rows)."""
+    sql_upper = sql.strip().upper()
+    return sql_upper.startswith("SELECT") or sql_upper.startswith("WITH")
+
+
+def _execute(svc, sql):
+    """Run SQL; return (rows, columns, row_count, error).
+    
+    Handles both SELECT queries (which return rows) and DML queries
+    (INSERT/UPDATE/DELETE which only return affected row count).
+    
+    Returns:
+        Tuple of (rows, columns, row_count, error)
+        - error is None on success, or a string describing the error
+        - For empty SELECT results: error is None, row_count is 0
+        - For timeout errors: error contains "timeout" or "timed out"
+    """
+    import time
+    start_time = time.time()
+    try:
+        # Check if this is a SELECT query or DML operation
+        if _is_select_query(sql):
+            # SELECT query - returns rows
+            df = svc.run_sql(sql)
+            elapsed = time.time() - start_time
+            if df is None:
+                logger.info(f"✓ Query executed in {elapsed:.2f}s, returned no data (df=None)")
+                return [], [], 0, None
+            cols = list(df.columns)
+            rows = df.head(500).to_dict(orient="records")
+            # Convert any non-JSON-serializable objects (Timestamp, datetime, etc.) to strings
+            rows = _convert_rows_to_serializable(rows)
+            row_count = int(len(df))
+            logger.info(f"✓ Query executed in {elapsed:.2f}s, returned {row_count} rows")
+            return rows, cols, row_count, None
+        else:
+            # DML query (INSERT/UPDATE/DELETE) - returns affected rows count
+            dml_result = svc.execute_dml(sql)
+            elapsed = time.time() - start_time
+            if dml_result["success"]:
+                # Return empty rows, but include success message in row_count
+                logger.info(f"✓ DML executed in {elapsed:.2f}s, affected {dml_result['affected_rows']} row(s)")
+                return [], [], dml_result["affected_rows"], None
+            else:
+                # Return error message
+                logger.error(f"✗ DML failed after {elapsed:.2f}s: {dml_result['error']}")
+                return [], [], 0, dml_result["error"]
     except Exception as exc:  # noqa: BLE001
-        return [], [], 0, str(exc)
+        elapsed = time.time() - start_time
+        error_str = str(exc)
+        error_lower = error_str.lower()
+        
+        # Detect timeout errors for better reporting
+        if "timeout" in error_lower or "timed out" in error_lower or "database is locked" in error_lower:
+            msg = f"⏱️ Query timed out after {elapsed:.2f}s (timeout likely due to complex JOIN or large dataset). Try adding filters to narrow results."
+            logger.error(msg)
+            return [], [], 0, msg
+        else:
+            logger.error(f"✗ Query failed after {elapsed:.2f}s: {error_str[:200]}")
+            return [], [], 0, error_str
+
+
+def _is_email_request(text: str) -> bool:
+    """
+    DEPRECATED - Use LLM-based routing instead.
+    This function is kept for backward compatibility only.
+    
+    IMPORTANT: The actual routing is now done via analyze_message_intent()
+    which uses ONLY the LLM to determine intent. This function should NOT be used.
+    """
+    logger.warning("⚠️  _is_email_request() called - this is deprecated. Use analyze_message_intent() instead.")
+    return False  # Disabled - use LLM routing instead
+
+
+
+def _extract_email_intent(text: str) -> str:
+    """Extract the data-retrieval part of an email request.
+    
+    Examples:
+    - "Send invoice for job 1 to client" -> "Get invoice for job 1 and customer email"
+    - "Email the sales report to Bob" -> "Get sales report"
+    """
+    text_lower = text.lower()
+    
+    # Extract what data is needed (before 'send'/'email'/'to')
+    send_pos = text_lower.find("send")
+    email_pos = text_lower.find("email")
+    to_pos = text_lower.find(" to ")
+    forward_pos = text_lower.find("forward")
+    
+    start_pos = min([p for p in [send_pos, email_pos, forward_pos] if p >= 0], default=0)
+    
+    if to_pos > start_pos:
+        data_part = text[:to_pos].strip()
+        recipient_part = text[to_pos+4:].strip()
+        
+        # Extract: "send X to Y" -> "Get X with Y"
+        if data_part.lower().startswith("send "):
+            data_part = data_part[5:]
+        elif data_part.lower().startswith("email "):
+            data_part = data_part[6:]
+        elif data_part.lower().startswith("forward "):
+            data_part = data_part[8:]
+        
+        # Build data retrieval query
+        return f"Get {data_part.strip()} and include recipient email address"
+    
+    return text
 
 
 @chat_bp.route("/query", methods=["POST"])
@@ -363,6 +500,48 @@ def query():
             "rewritten_query": consolidated,
         }), 400
 
+    # ----- LLM-BASED MESSAGE ROUTING: Determine intent (email, WhatsApp, database query, etc.) ----- #
+    # Use ONLY the LLM to decide what the user wants to do - no heuristics
+    logger.info("🧠 Analyzing message intent with LLM (not heuristics)...")
+    routing_result = analyze_message_intent(llm, user_query, history)
+    intent = routing_result.get("intent", "database_query")
+    confidence = routing_result.get("confidence", 0.0)
+    reasoning = routing_result.get("reasoning", "")
+    
+    logger.info(f"📍 LLM Intent: {intent} (confidence: {confidence:.1%})")
+    logger.info(f"   Reasoning: {reasoning}")
+    
+    # Check if this is a message sending request
+    is_email_request = (intent == "send_email")
+    is_whatsapp_request = (intent in ["send_whatsapp", "respond_whatsapp"])
+    
+    email_data_query = None
+    whatsapp_data = None
+    
+    # Handle email routing
+    if is_email_request:
+        email_data_query = routing_result.get("message_body") or _extract_email_intent(user_query)
+        logger.info(f"📧 Email intent detected: recipient={routing_result.get('recipient')}, subject={routing_result.get('subject')}")
+        # Convert to data query: "Send invoice X to Y" -> retrieve invoice X and recipient email
+        consolidated = email_data_query
+    
+    # Handle WhatsApp routing
+    elif is_whatsapp_request:
+        whatsapp_data = {
+            "recipient": routing_result.get("recipient"),
+            "message": routing_result.get("message_body") or user_query,
+            "intent": intent
+        }
+        logger.info(f"💬 WhatsApp intent detected: recipient={whatsapp_data['recipient']}")
+        # Use the message as is - no data query needed
+        consolidated = user_query
+    
+    # Database query or other
+    else:
+        logger.info(f"🗄️  General intent detected: {intent}")
+        # Use the query as is
+        consolidated = user_query
+
     # ----- Route intent: database (priority), knowledge base, or direct ----- #
     user_ctx = current_user_context()
     access_mode = _training_access_mode(user_ctx)
@@ -447,8 +626,9 @@ def query():
 
     # ----- Generate SQL with RAG + conversation context + CoT ----- #
     scope_note = _build_scope_note(user_ctx)
+    is_admin = user_ctx.get("is_admin", False) if user_ctx else False
     try:
-        sql = svc.generate_sql_multiturn(consolidated, history, scope_note=scope_note, access_mode=access_mode)
+        sql = svc.generate_sql_multiturn(consolidated, history, scope_note=scope_note, access_mode=access_mode, is_admin=is_admin)
     except Exception as exc:  # noqa: BLE001
         logger.error(f"SQL generation failed: {exc}")
         _audit(conversation_id, user_query, consolidated, "", 0, success=False, error=str(exc),
@@ -480,7 +660,8 @@ def query():
         sql = user_filter.modify_sql_query(sql)
 
     # ----- Safety guard: SELECT-only + enforce default LIMIT ----- #
-    safe, reason = sql_guard.validate(sql)
+    is_admin = ctx.get("is_admin", False) if ctx else False
+    safe, reason = sql_guard.validate(sql, is_admin=is_admin)
     if not safe:
         logger.warning(f"🛡️  Blocked unsafe SQL: {reason} | {sql}")
         _audit(conversation_id, user_query, consolidated, sql, 0, success=False,
@@ -555,7 +736,7 @@ def query():
             try:
                 corrected = svc.correct_sql(consolidated, sql, fk_reason, history)
                 corrected = sql_guard.sanitize(corrected)
-                ok, why = sql_guard.validate(corrected)
+                ok, why = sql_guard.validate(corrected, is_admin=is_admin)
                 if ok:
                     sql = corrected
                     logger.info(f"Regenerated SQL after company_fk correction: {sql}")
@@ -573,8 +754,21 @@ def query():
         sql = sql_guard.enforce_company_fk(sql, company_fk)
         logger.info(f"[✓] Enforced company_fk in {company_fk} on query (user: {username})")
 
+    # ----- Validate SQL tables exist in database ----- #
+    is_table_valid, table_error = svc.validate_sql_tables(sql)
+    if not is_table_valid:
+        logger.warning(f"⚠️  Generated SQL references invalid tables: {table_error}")
+        # Use this as the initial error to trigger correction
+        run_error = table_error
+    else:
+        run_error = None
+
     # ----- Execute with self-correction loop ----- #
-    rows, columns, row_count, run_error = _execute(svc, sql)
+    if not run_error:
+        rows, columns, row_count, run_error = _execute(svc, sql)
+    else:
+        rows, columns, row_count = [], [], 0
+    
     attempts = 0
     while run_error and attempts < MAX_CORRECTION_ATTEMPTS:
         attempts += 1
@@ -583,10 +777,17 @@ def query():
         try:
             fixed = svc.correct_sql(consolidated, sql, run_error, history)
             fixed = sql_guard.sanitize(fixed)
-            ok, why = sql_guard.validate(fixed)
+            ok, why = sql_guard.validate(fixed, is_admin=is_admin)
             if not ok:
                 run_error = f"Correction blocked: {why}"
                 break
+            
+            # Validate tables exist in corrected SQL
+            is_table_valid, table_error = svc.validate_sql_tables(fixed)
+            if not is_table_valid:
+                logger.warning(f"Corrected SQL still has invalid tables: {table_error}")
+                run_error = table_error
+                continue
             
             # Check if corrected query still has wrong company_fk
             if user_company_fk and not ctx.get("is_admin"):
@@ -615,15 +816,29 @@ def query():
         except Exception as exc:  # noqa: BLE001
             logger.debug(f"Analysis failed: {exc}")
 
-    default_message = (
-        f"Returned {row_count} row(s)." if run_error is None
-        else f"Generated SQL but execution failed: {run_error}"
-    )
+    # Generate appropriate default message based on operation type
+    if run_error is not None:
+        default_message = f"Generated SQL but execution failed: {run_error}"
+    elif not rows and not columns and row_count > 0:
+        # DML operation (INSERT/UPDATE/DELETE)
+        sql_upper = sql.strip().upper()
+        if sql_upper.startswith("INSERT"):
+            operation = "inserted"
+        elif sql_upper.startswith("UPDATE"):
+            operation = "updated"
+        elif sql_upper.startswith("DELETE"):
+            operation = "deleted"
+        else:
+            operation = "affected"
+        default_message = f"Successfully {operation} {row_count} row(s)."
+    else:
+        # SELECT query
+        default_message = f"Returned {row_count} row(s)."
 
     # Conversational answer following the shared response guide.
     from ..responder import compose_answer
     message = compose_answer(
-        llm, user_query, sql, columns, rows, row_count, run_error
+        llm, user_query, sql, columns, rows, row_count, run_error, intent=intent
     ) or default_message
     response_usage = _usage_snapshot(llm)
 
@@ -654,6 +869,39 @@ def query():
         "llm_provider": llm_settings.get("provider"),
         "llm_model": llm_settings.get("model"),
     }
+    
+    # ----- MESSAGE ROUTING METADATA: Add routing info to response ----- #
+    routing_metadata = {
+        "intent": intent,
+        "intent_confidence": confidence,
+        "intent_reasoning": reasoning,
+        "is_email_request": is_email_request,
+        "is_whatsapp_request": is_whatsapp_request,
+    }
+    
+    if is_email_request and run_error is None and rows:
+        routing_metadata["next_action"] = "send_email"
+        routing_metadata["email_preview_ready"] = True
+        routing_metadata["recipient"] = routing_result.get("recipient")
+        routing_metadata["email_subject"] = routing_result.get("subject")
+        # Suggest next step in the message
+        answer["message"] = (
+            answer["message"] + "\n\n📧 **Next Step:** Review the data above and click "
+            "'Preview & Send Email' to send this to the recipient."
+        )
+    
+    if is_whatsapp_request:
+        routing_metadata["next_action"] = "send_whatsapp"
+        routing_metadata["whatsapp_recipient"] = whatsapp_data.get("recipient")
+        routing_metadata["whatsapp_message"] = whatsapp_data.get("message")
+        routing_metadata["whatsapp_intent"] = whatsapp_data.get("intent")
+        # Suggest next step
+        answer["message"] = (
+            f"💬 **Ready to send WhatsApp** to {whatsapp_data.get('recipient')}:\n"
+            f"\"{whatsapp_data.get('message')}\"\n\n"
+            f"Click 'Send WhatsApp' to proceed."
+        )
+    
     ConversationManager.append_turn(conversation_id, user_query, answer, title_hint=user_query, user_id=user_id, is_first_message=is_first_message, message_position=message_position)
 
     total_usage = token_usage["total"]
@@ -694,6 +942,12 @@ def query():
         "context_cache": getattr(svc, "last_context_cache", {}),
         "is_first_message": is_first_message,
         "message_position": message_position,
+        # Message routing metadata (LLM-based intent detection)
+        "routing": routing_metadata,
+        "is_email_request": is_email_request,  # Backward compatibility
+        "is_whatsapp_request": is_whatsapp_request,
+        "next_action": routing_metadata.get("next_action"),
+        "email_preview_ready": routing_metadata.get("email_preview_ready", False),
     }), 200
 
 
@@ -712,6 +966,7 @@ def refresh():
 
     sql = sql_guard.sanitize(sql)
     ctx = current_user_context()
+    is_admin = ctx.get("is_admin", False) if ctx else False
     if ctx and not ctx.get("is_admin") and (ctx.get("company_id") or ctx.get("related_company_ids")):
         user_filter = UserQueryFilter(
             user_id=ctx.get("user_id"),
@@ -721,7 +976,7 @@ def refresh():
             related_company_ids=ctx.get("related_company_ids") or [],
         )
         sql = user_filter.modify_sql_query(sql)
-    safe, reason = sql_guard.validate(sql)
+    safe, reason = sql_guard.validate(sql, is_admin=is_admin)
     if not safe:
         return jsonify({"success": False, "error": f"Blocked: {reason}"}), 400
     sql = sql_guard.enforce_limit(sql)
@@ -764,6 +1019,7 @@ def run_sql():
     # Apply the same safety guard to user-edited SQL.
     sql = sql_guard.sanitize(sql)
     ctx = current_user_context()
+    is_admin = ctx.get("is_admin", False) if ctx else False
     if ctx and not ctx.get("is_admin") and (ctx.get("company_id") or ctx.get("related_company_ids")):
         user_filter = UserQueryFilter(
             user_id=ctx.get("user_id"),
@@ -773,7 +1029,7 @@ def run_sql():
             related_company_ids=ctx.get("related_company_ids") or [],
         )
         sql = user_filter.modify_sql_query(sql)
-    safe, reason = sql_guard.validate(sql)
+    safe, reason = sql_guard.validate(sql, is_admin=is_admin)
     if not safe:
         return jsonify({"success": False, "error": f"Blocked for safety: {reason}"}), 200
     sql = sql_guard.enforce_limit(sql)
@@ -789,10 +1045,12 @@ def run_sql():
         return jsonify({"success": False, "error": "No source database connected."}), 503
     try:
         df = svc.run_sql(sql)
+        rows = df.head(500).to_dict(orient="records") if df is not None else []
+        rows = _convert_rows_to_serializable(rows)
         return jsonify({
             "success": True,
             "columns": list(df.columns) if df is not None else [],
-            "data": df.head(500).to_dict(orient="records") if df is not None else [],
+            "data": rows,
             "row_count": int(len(df)) if df is not None else 0,
         }), 200
     except Exception as exc:  # noqa: BLE001

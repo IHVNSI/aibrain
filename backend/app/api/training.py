@@ -318,18 +318,30 @@ def train_information_schema():
     try:
         result = svc.train_from_information_schema(db_url)
         
-        # Create training records for each trained table
-        # Store summary in a single documentation item
         trained_count = result.get('items', 0)
         column_count = result.get('columns', 0)
+        table_ddls = result.get('tables', [])
         
-        # Create summary record
+        # Create individual training records for each table's DDL
+        for table_info in table_ddls:
+            db.session.add(TrainingItem(
+                item_type="ddl",
+                rule="optional",
+                access="all",
+                source_kind="auto",
+                source_name=f"information_schema_auto_train",
+                source_file_type="schema",
+                content=table_info['ddl'],
+                vanna_id=table_info['vanna_id']
+            ))
+        
+        # Also create a summary record for reference
         db.session.add(TrainingItem(
             item_type="documentation",
             source_kind="auto",
-            source_name="information_schema_auto_train",
+            source_name="information_schema_auto_train_summary",
             content=f"[auto] INFORMATION_SCHEMA: {trained_count} tables, {column_count} columns trained",
-            vanna_id=f"auto-info-schema-{int(__import__('time').time())}"
+            vanna_id=f"auto-info-schema-summary-{int(__import__('time').time())}"
         ))
         db.session.commit()
         
@@ -338,9 +350,11 @@ def train_information_schema():
             "success": True, 
             "tables_trained": trained_count,
             "columns_trained": column_count,
-            "message": f"Auto-trained on {trained_count} tables ({column_count} columns)."
+            "message": f"Auto-trained on {trained_count} tables ({column_count} columns).",
+            "training_items": [t.to_dict() for t in TrainingItem.query.filter_by(source_kind="auto").order_by(TrainingItem.created_at.desc()).all()]
         }), 200
     except Exception as exc:  # noqa: BLE001
+        db.session.rollback()
         logger.error(f"Auto-train error: {exc}")
         return jsonify({"success": False, "error": str(exc)}), 500
 
@@ -495,3 +509,80 @@ def bulk_update_training():
         db.session.rollback()
         logger.error(f"Bulk update failed: {exc}")
         return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@training_bp.route("/auto-trained/schemas", methods=["GET"])
+@require_auth
+def get_auto_trained_schemas():
+    """Retrieve all auto-trained DDL schemas (from INFORMATION_SCHEMA).
+    
+    Returns list of all trained table schemas that can be viewed and edited.
+    """
+    ctx = current_user_context() or {}
+    if not ctx.get("is_admin"):
+        return jsonify({"success": False, "error": "Admin access required"}), 403
+    
+    # Get all auto-trained DDL items
+    items = TrainingItem.query.filter(
+        TrainingItem.source_kind == "auto",
+        TrainingItem.item_type == "ddl"
+    ).order_by(TrainingItem.created_at.desc()).all()
+    
+    return jsonify({
+        "success": True,
+        "total_schemas": len(items),
+        "schemas": [item.to_dict() for item in items]
+    }), 200
+
+
+@training_bp.route("/auto-trained/export", methods=["GET"])
+@require_auth
+def export_auto_trained_schemas():
+    """Export all auto-trained DDL schemas as SQL or JSON.
+    
+    Query params:
+    - format: 'sql' (default) or 'json'
+    """
+    ctx = current_user_context() or {}
+    if not ctx.get("is_admin"):
+        return jsonify({"success": False, "error": "Admin access required"}), 403
+    
+    export_format = request.args.get("format", "sql").lower()
+    if export_format not in {"sql", "json"}:
+        export_format = "sql"
+    
+    # Get all auto-trained DDL items
+    items = TrainingItem.query.filter(
+        TrainingItem.source_kind == "auto",
+        TrainingItem.item_type == "ddl"
+    ).order_by(TrainingItem.created_at.asc()).all()
+    
+    if not items:
+        return jsonify({"success": False, "error": "No auto-trained schemas found"}), 404
+    
+    if export_format == "json":
+        return jsonify({
+            "success": True,
+            "format": "json",
+            "count": len(items),
+            "exported_at": __import__('datetime').datetime.utcnow().isoformat(),
+            "schemas": [item.to_dict() for item in items]
+        }), 200
+    else:  # SQL format
+        sql_lines = [
+            "-- Auto-trained Database Schemas",
+            f"-- Exported at: {__import__('datetime').datetime.utcnow().isoformat()}",
+            f"-- Total tables: {len(items)}",
+            "",
+        ]
+        for item in items:
+            sql_lines.append(f"-- Source: {item.source_name}")
+            sql_lines.append(item.content)
+            sql_lines.append("")
+        
+        response_text = "\n".join(sql_lines)
+        
+        response = __import__('flask').make_response(response_text)
+        response.headers["Content-Type"] = "text/plain; charset=utf-8"
+        response.headers["Content-Disposition"] = "attachment; filename=database-schemas.sql"
+        return response

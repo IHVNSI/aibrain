@@ -766,3 +766,67 @@ def update_table_role_access():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@auth_config_bp.route('/table-role-access/cleanup-stale', methods=['POST'])
+@require_auth
+def cleanup_stale_table_access():
+    """Remove table-role access entries for tables no longer in the current source database.
+    
+    This is useful when switching to a different source database.
+    Removes any TableRoleAccess records where the table_name no longer exists in source_db.
+    """
+    try:
+        from ..models import TableRoleAccess
+        
+        # Check if SOURCE database is configured
+        check_result = _check_source_db_configured()
+        if check_result:
+            return check_result
+        
+        engine = get_source_engine()
+        inspector = inspect(engine)
+        
+        # Get all current table names from source database
+        current_tables = set(inspector.get_table_names())
+        
+        # Get all table names that are currently tracked in TableRoleAccess
+        tracked_tables = set(ta.table_name for ta in db.session.query(TableRoleAccess.table_name).distinct())
+        
+        # Find stale tables (in tracking but not in source database)
+        stale_tables = tracked_tables - current_tables
+        
+        if not stale_tables:
+            return jsonify({
+                'success': True,
+                'message': 'No stale tables found. Access configuration is clean.',
+                'stale_count': 0,
+                'cleaned_records': 0
+            })
+        
+        # Remove access records for stale tables
+        deleted_records = 0
+        for stale_table in stale_tables:
+            deleted_count = db.session.query(TableRoleAccess).filter_by(table_name=stale_table).delete()
+            deleted_records += deleted_count
+            logger.info(f"🗑️  Removed {deleted_count} access records for stale table: {stale_table}")
+        
+        db.session.commit()
+        
+        logger.info(f"✅ Cleanup complete: Removed {deleted_records} access records for {len(stale_tables)} stale tables")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Removed access records for {len(stale_tables)} stale tables ({deleted_records} total records deleted)',
+            'stale_tables': sorted(list(stale_tables)),
+            'stale_count': len(stale_tables),
+            'cleaned_records': deleted_records
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error cleaning up stale table access: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

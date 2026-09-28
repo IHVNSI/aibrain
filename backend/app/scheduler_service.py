@@ -47,18 +47,20 @@ class ScheduledTask(Base):
 class TaskScheduler:
     """Schedule and manage automated tasks with natural language support."""
     
-    def __init__(self, db_url: Optional[str] = None):
+    def __init__(self, db_url: Optional[str] = None, app=None):
         """
         Initialize task scheduler.
         
         Args:
             db_url: SQLAlchemy database URL (uses ADMIN_DB_URL if not provided)
+            app: Flask app instance (optional, but required for db access in handlers)
         """
         if db_url is None:
             db_url = os.getenv('ADMIN_DB_URL', 'sqlite:///brainr.db')
         
         self.engine = create_engine(db_url)
         self.SessionLocal = sessionmaker(bind=self.engine)
+        self.app = app  # Store Flask app reference for app context in handlers
         
         # Create tables
         Base.metadata.create_all(self.engine)
@@ -156,13 +158,18 @@ class TaskScheduler:
             return CronTrigger.from_crontab('0 * * * *')
     
     def _execute_task(self, task: ScheduledTask, task_config: Dict[str, Any]):
-        """Execute a scheduled task."""
+        """Execute a scheduled task within Flask app context if available."""
         logger.info(f"Executing task: {task.name}")
         
         try:
             handler = self.task_handlers.get(task.task_type)
             if handler:
-                result = handler(task, task_config)
+                # Execute handler within Flask app context if available
+                if self.app:
+                    with self.app.app_context():
+                        result = handler(task, task_config)
+                else:
+                    result = handler(task, task_config)
                 
                 # Update last_run
                 session = self.SessionLocal()
@@ -177,7 +184,7 @@ class TaskScheduler:
                 
                 return result
         except Exception as e:
-            logger.error(f"Error executing task {task.name}: {e}")
+            logger.error(f"Error executing task {task.name}: {e}", exc_info=True)
     
     def create_task(
         self,

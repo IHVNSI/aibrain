@@ -236,6 +236,76 @@ class SecuritySetting(db.Model):
         }
 
 
+class AuthorizedContact(db.Model):
+    """Authorized emails and phone numbers for remote SQL command execution."""
+    __tablename__ = "authorized_contacts"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    contact = db.Column(db.String(255), nullable=False, unique=True, index=True)  # Email or phone number
+    contact_type = db.Column(db.String(20), default='email')  # 'email' or 'phone'
+    permission_level = db.Column(db.String(50), default='SELECT_ONLY')  # SELECT_ONLY, READ_WRITE, ADMIN
+    description = db.Column(db.String(255), nullable=True)  # e.g., "Manager Account", "Client Support"
+    is_active = db.Column(db.Boolean, default=True)
+    
+    # Auto-reply settings per contact
+    auto_reply_enabled = db.Column(db.Boolean, default=False)  # Enable auto-reply for this contact
+    auto_reply_mode = db.Column(db.String(50), default='draft')  # 'draft' (save as draft) or 'send' (auto-send)
+    auto_reply_ai_instructions = db.Column(db.Text, nullable=True)  # Custom AI instructions for this contact
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = db.Column(db.String(255), nullable=True)  # Admin who created this
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'contact': self.contact,
+            'contact_type': self.contact_type,
+            'permission_level': self.permission_level,
+            'description': self.description,
+            'is_active': self.is_active,
+            'auto_reply_enabled': self.auto_reply_enabled,
+            'auto_reply_mode': self.auto_reply_mode,
+            'auto_reply_ai_instructions': self.auto_reply_ai_instructions,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'created_by': self.created_by,
+        }
+    
+    @staticmethod
+    def is_authorized(contact: str, required_permission: str = 'SELECT_ONLY') -> bool:
+        """Check if contact is authorized with required permission level."""
+        auth_contact = AuthorizedContact.query.filter_by(
+            contact=contact,
+            is_active=True
+        ).first()
+        
+        if not auth_contact:
+            return False
+        
+        # Permission hierarchy: SELECT_ONLY < READ_WRITE < ADMIN
+        permission_hierarchy = {
+            'SELECT_ONLY': 1,
+            'READ_WRITE': 2,
+            'ADMIN': 3
+        }
+        
+        required_level = permission_hierarchy.get(required_permission, 0)
+        contact_level = permission_hierarchy.get(auth_contact.permission_level, 0)
+        
+        return contact_level >= required_level
+    
+    @staticmethod
+    def get_permission_level(contact: str) -> str:
+        """Get permission level for a contact, or None if not authorized."""
+        auth_contact = AuthorizedContact.query.filter_by(
+            contact=contact,
+            is_active=True
+        ).first()
+        
+        return auth_contact.permission_level if auth_contact else None
+
+
 class Setting(db.Model):
     """Generic key/value settings store (one row per settings key)."""
     __tablename__ = "settings"
@@ -285,6 +355,9 @@ class AIContext(db.Model):
     business_rules = db.Column(db.Text, nullable=True)  # Business logic constraints
     data_isolation_rules = db.Column(db.Text, nullable=True)  # Multi-tenant data filtering rules
     vocabulary = db.Column(db.Text, nullable=True)  # Terminology definitions
+    email_response_rules = db.Column(db.Text, nullable=True)  # Email-specific response rules
+    whatsapp_response_rules = db.Column(db.Text, nullable=True)  # WhatsApp-specific response rules
+    parent_app_description = db.Column(db.Text, nullable=True)  # Description of parent app structure, nature, and routes
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)  # Which admin last edited
@@ -301,6 +374,9 @@ class AIContext(db.Model):
             "business_rules": self.business_rules,
             "data_isolation_rules": self.data_isolation_rules,
             "vocabulary": self.vocabulary,
+            "email_response_rules": self.email_response_rules,
+            "whatsapp_response_rules": self.whatsapp_response_rules,
+            "parent_app_description": self.parent_app_description,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "updated_by": self.updated_by,
@@ -501,6 +577,8 @@ class StoredEmail(db.Model):
     received_date = db.Column(db.DateTime, nullable=False)
     is_read = db.Column(db.Boolean, default=False)
     folder = db.Column(db.String(100), default='INBOX')  # Email folder name
+    is_new = db.Column(db.Boolean, default=True)  # Track if email is newly synced (for auto-reply)
+    auto_reply_sent = db.Column(db.Boolean, default=False)  # Track if auto-reply was sent
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -514,7 +592,46 @@ class StoredEmail(db.Model):
             "html_body": self.html_body,
             "received_date": self.received_date.isoformat() if self.received_date else None,
             "is_read": self.is_read,
+            "is_new": self.is_new,
+            "auto_reply_sent": self.auto_reply_sent,
             "folder": self.folder,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class EmailSyncStatus(db.Model):
+    """Track email sync status and history."""
+    __tablename__ = "email_sync_status"
+
+    id = db.Column(db.Integer, primary_key=True)
+    sync_type = db.Column(db.String(50), default='incremental')  # 'full' or 'incremental'
+    status = db.Column(db.String(50), default='pending')  # 'pending', 'in_progress', 'completed', 'failed'
+    last_sync_time = db.Column(db.DateTime)  # Last successful sync time
+    next_sync_time = db.Column(db.DateTime)  # Scheduled next sync time
+    total_emails_synced = db.Column(db.Integer, default=0)  # Total emails in database
+    emails_in_last_sync = db.Column(db.Integer, default=0)  # Emails synced in last sync
+    new_emails_count = db.Column(db.Integer, default=0)  # Unprocessed new emails
+    folders_synced = db.Column(db.Text)  # JSON: list of folders synced
+    error_message = db.Column(db.Text)  # Error message if sync failed
+    sync_started_at = db.Column(db.DateTime)  # When current sync started
+    sync_duration_seconds = db.Column(db.Integer)  # Duration of last sync in seconds
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "sync_type": self.sync_type,
+            "status": self.status,
+            "last_sync_time": self.last_sync_time.isoformat() if self.last_sync_time else None,
+            "next_sync_time": self.next_sync_time.isoformat() if self.next_sync_time else None,
+            "total_emails_synced": self.total_emails_synced,
+            "emails_in_last_sync": self.emails_in_last_sync,
+            "new_emails_count": self.new_emails_count,
+            "folders_synced": json.loads(self.folders_synced) if self.folders_synced else [],
+            "error_message": self.error_message,
+            "sync_started_at": self.sync_started_at.isoformat() if self.sync_started_at else None,
+            "sync_duration_seconds": self.sync_duration_seconds,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -534,6 +651,7 @@ class DraftEmail(db.Model):
     in_reply_to = db.Column(db.Integer, db.ForeignKey("stored_emails.id"), nullable=True)  # If replying to an email
     auto_generated = db.Column(db.Boolean, default=False)  # Was this generated by AI auto-reply?
     ai_prompt = db.Column(db.Text, nullable=True)  # The prompt used to generate this email
+    ai_context = db.Column(db.Text, nullable=True)  # JSON context (system instructions, training data, etc.)
     error_message = db.Column(db.Text, nullable=True)  # Error if sending failed
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -552,6 +670,7 @@ class DraftEmail(db.Model):
             "in_reply_to": self.in_reply_to,
             "auto_generated": self.auto_generated,
             "ai_prompt": self.ai_prompt,
+            "ai_context": self.ai_context,
             "error_message": self.error_message,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
@@ -568,6 +687,8 @@ class AutoReplySettings(db.Model):
     mode = db.Column(db.String(50), default='review')  # 'auto' (send immediately) or 'review' (save to drafts)
     ai_instructions = db.Column(db.Text)  # Custom instructions for AI to generate replies
     use_database = db.Column(db.Boolean, default=True)  # Whether to fetch data from database
+    use_llm = db.Column(db.Boolean, default=True)  # Whether to use LLM for generating replies
+    auto_send = db.Column(db.Boolean, default=False)  # Whether to auto-send (deprecated: use mode='auto' instead)
     database_context = db.Column(db.Text)  # JSON: which tables/fields to use for context
     reply_template = db.Column(db.Text)  # Optional template for replies
     enabled_folders = db.Column(db.String(500))  # Comma-separated list of folders to auto-reply to
@@ -581,6 +702,8 @@ class AutoReplySettings(db.Model):
             "mode": self.mode,
             "ai_instructions": self.ai_instructions,
             "use_database": self.use_database,
+            "use_llm": self.use_llm,
+            "auto_send": self.auto_send,
             "database_context": json.loads(self.database_context) if self.database_context else {},
             "reply_template": self.reply_template,
             "enabled_folders": self.enabled_folders.split(',') if self.enabled_folders else ['INBOX'],
@@ -806,6 +929,27 @@ class SocialMediaResponse(db.Model):
             "prompt_used": self.prompt_used,
             "context_used": self.context_used,
             "sent_at": self.sent_at.isoformat() if self.sent_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class AppSettings(db.Model):
+    """Application branding and theme settings: colors, fonts, logos, typography."""
+    __tablename__ = "app_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    config_json = db.Column(db.Text, nullable=False)  # JSON blob with all theme config
+    updated_by = db.Column(db.String(100), default="admin")
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        config = json.loads(self.config_json) if self.config_json else {}
+        return {
+            "id": self.id,
+            "config": config,
+            "updated_by": self.updated_by,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

@@ -147,7 +147,7 @@ export default function SocialMediaTab() {
             resetForm()
             setShowForm(true)
           }}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2 transition"
+          className="btn-primary flex items-center gap-2"
         >
           <Plus size={18} /> Add Channel
         </button>
@@ -177,7 +177,7 @@ export default function SocialMediaTab() {
               resetForm()
               setShowForm(true)
             }}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
+            className="btn-primary"
           >
             Configure Your First Channel
           </button>
@@ -477,7 +477,7 @@ export default function SocialMediaTab() {
               <button
                 onClick={handleSave}
                 disabled={loading}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition"
+                className="btn-primary flex items-center gap-2"
               >
                 {loading ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
                 {editingId ? 'Update Account' : 'Create Account'}

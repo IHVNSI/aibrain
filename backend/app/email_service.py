@@ -1,6 +1,9 @@
 """Email service for reading and responding to emails."""
 import os
 import logging
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from imap_tools import MailBox, AND
 from email_validator import validate_email, EmailNotValidError
 from datetime import datetime, timedelta, date
@@ -49,7 +52,7 @@ class EmailService:
                 logger.warning("Error disconnecting: %s", str(e))
     def get_unread_emails(self, limit: int = 10, folder: str = 'INBOX') -> List[Dict[str, Any]]:
         """
-        Get unread emails.
+        Get unread emails (with fallback to recent emails if unread returns 0).
         
         Args:
             limit: Max number of emails to retrieve
@@ -83,6 +86,28 @@ class EmailService:
                 })
             
             logger.info("Retrieved %d unread emails from %s", len(emails), folder)
+            
+            # If no unread emails found, try to get recent emails from last 24 hours instead
+            if not emails:
+                logger.info(f"No unread emails found in {folder}, fetching recent emails from last 24 hours...")
+                self.mailbox.folder.set(folder)
+                since_date = (datetime.now() - timedelta(days=1)).date()
+                criteria = AND(date_gte=since_date)
+                for msg in self.mailbox.fetch(criteria, limit=limit, reverse=True):
+                    emails.append({
+                        'id': msg.uid,
+                        'from': msg.from_,
+                        'to': msg.to,
+                        'subject': msg.subject,
+                        'text': msg.text or '',
+                        'html': msg.html or '',
+                        'date': msg.date.isoformat() if msg.date else None,
+                        'is_unread': '\\Seen' not in msg.flags,
+                        'cc': msg.cc,
+                        'bcc': msg.bcc,
+                    })
+                logger.info("Retrieved %d recent emails from %s (last 24 hours)", len(emails), folder)
+            
             return emails
         except Exception as e:
             logger.error("Error retrieving emails from %s: %s", folder, str(e))
@@ -200,6 +225,155 @@ class EmailService:
         except Exception as e:
             logger.error("Error getting folder list: %s", str(e))
             return []
+    
+    def get_all_emails(self, folder: str = 'INBOX', limit: int = None) -> List[Dict[str, Any]]:
+        """
+        Get ALL emails from a folder (for initial bulk download).
+        
+        Args:
+            folder: Email folder (default: INBOX)
+            limit: Max number of emails to retrieve (None = unlimited)
+        
+        Returns:
+            List of email dictionaries
+        """
+        if not self.mailbox:
+            return []
+        
+        try:
+            emails = []
+            self.mailbox.folder.set(folder)
+            
+            # Fetch all emails, ordered by oldest first
+            if limit:
+                for msg in self.mailbox.fetch(limit=limit, reverse=False):
+                    emails.append({
+                        'id': msg.uid,
+                        'from': msg.from_,
+                        'to': msg.to,
+                        'subject': msg.subject,
+                        'text': msg.text or '',
+                        'html': msg.html or '',
+                        'date': msg.date.isoformat() if msg.date else None,
+                        'is_unread': '\\Seen' not in msg.flags,
+                        'cc': msg.cc,
+                        'bcc': msg.bcc,
+                    })
+            else:
+                for msg in self.mailbox.fetch(reverse=False):
+                    emails.append({
+                        'id': msg.uid,
+                        'from': msg.from_,
+                        'to': msg.to,
+                        'subject': msg.subject,
+                        'text': msg.text or '',
+                        'html': msg.html or '',
+                        'date': msg.date.isoformat() if msg.date else None,
+                        'is_unread': '\\Seen' not in msg.flags,
+                        'cc': msg.cc,
+                        'bcc': msg.bcc,
+                    })
+            
+            logger.info("Retrieved %d total emails from %s", len(emails), folder)
+            return emails
+        except Exception as e:
+            logger.error("Error retrieving all emails from %s: %s", folder, str(e))
+            return []
+    
+    def get_emails_after_date(self, after_date: datetime, folder: str = 'INBOX', limit: int = None) -> List[Dict[str, Any]]:
+        """
+        Get emails received after a specific date (for incremental sync).
+        
+        Args:
+            after_date: Datetime to retrieve emails after
+            folder: Email folder (default: INBOX)
+            limit: Max number of emails to retrieve (None = unlimited)
+        
+        Returns:
+            List of email dictionaries
+        """
+        if not self.mailbox:
+            return []
+        
+        try:
+            # Convert datetime to date for imap_tools compatibility
+            since_date = after_date.date()
+            criteria = AND(date_gte=since_date)
+            
+            emails = []
+            self.mailbox.folder.set(folder)
+            
+            # Fetch emails, ordered by newest first
+            if limit:
+                for msg in self.mailbox.fetch(criteria, limit=limit, reverse=True):
+                    # Filter by time if date precision is needed
+                    if msg.date and msg.date > after_date:
+                        emails.append({
+                            'id': msg.uid,
+                            'from': msg.from_,
+                            'to': msg.to,
+                            'subject': msg.subject,
+                            'text': msg.text or '',
+                            'html': msg.html or '',
+                            'date': msg.date.isoformat() if msg.date else None,
+                            'is_unread': '\\Seen' not in msg.flags,
+                            'cc': msg.cc,
+                            'bcc': msg.bcc,
+                        })
+            else:
+                for msg in self.mailbox.fetch(criteria, reverse=True):
+                    # Filter by time if date precision is needed
+                    if msg.date and msg.date > after_date:
+                        emails.append({
+                            'id': msg.uid,
+                            'from': msg.from_,
+                            'to': msg.to,
+                            'subject': msg.subject,
+                            'text': msg.text or '',
+                            'html': msg.html or '',
+                            'date': msg.date.isoformat() if msg.date else None,
+                            'is_unread': '\\Seen' not in msg.flags,
+                            'cc': msg.cc,
+                            'bcc': msg.bcc,
+                        })
+            
+            logger.info("Retrieved %d emails after %s from %s", len(emails), after_date, folder)
+            return emails
+        except Exception as e:
+            logger.error("Error retrieving emails after date: %s", str(e))
+            return []
+    
+    def get_all_folders_emails(self, limit_per_folder: int = None, include_folders: List[str] = None) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Get all emails from all folders (or specified folders).
+        
+        Args:
+            limit_per_folder: Max emails per folder (None = unlimited)
+            include_folders: List of folder names to include (None = all)
+        
+        Returns:
+            Dictionary with folder names as keys and email lists as values
+        """
+        if not self.mailbox:
+            return {}
+        
+        try:
+            result = {}
+            folders = self.get_folder_list()
+            
+            for folder in folders:
+                if include_folders and folder not in include_folders:
+                    continue
+                
+                logger.info("Syncing folder: %s", folder)
+                emails = self.get_all_emails(folder, limit=limit_per_folder)
+                result[folder] = emails
+            
+            logger.info("Retrieved emails from %d folders", len(result))
+            return result
+        except Exception as e:
+            logger.error("Error retrieving all folder emails: %s", str(e))
+            return {}
 
 
 class EmailConfig:
@@ -213,6 +387,47 @@ class EmailConfig:
         'icloud': 'imap.mail.me.com',
         'custom': os.getenv('EMAIL_IMAP_SERVER', ''),
     }
+    
+    # SMTP server configurations (common providers)
+    SMTP_SERVERS = {
+        'gmail': ('smtp.gmail.com', 587),
+        'outlook': ('smtp-mail.outlook.com', 587),
+        'yahoo': ('smtp.mail.yahoo.com', 587),
+        'icloud': ('smtp.mail.icloud.com', 587),
+        'custom': (os.getenv('EMAIL_SMTP_SERVER', 'smtp.gmail.com'), 
+                   int(os.getenv('EMAIL_SMTP_PORT', '587')))
+    }
+    
+    def __init__(self):
+        """Initialize email configuration from environment."""
+        self.from_address = os.getenv('EMAIL_ADDRESS')
+        self.email_password = os.getenv('EMAIL_PASSWORD')
+        self.provider = os.getenv('EMAIL_PROVIDER', 'gmail').lower()
+        
+        # Get SMTP settings
+        smtp_config = self.SMTP_SERVERS.get(self.provider, ('smtp.gmail.com', 587))
+        self.smtp_server, self.smtp_port = smtp_config
+        
+        # Determine SSL/TLS
+        self.use_ssl = int(self.smtp_port) == 465
+    
+    @classmethod
+    def get_current(cls) -> Optional['EmailConfig']:
+        """
+        Get current email configuration.
+        
+        Returns:
+            EmailConfig instance if email is configured, None otherwise
+        """
+        email_address = os.getenv('EMAIL_ADDRESS')
+        email_password = os.getenv('EMAIL_PASSWORD')
+        
+        if not email_address or not email_password:
+            logger.warning("EMAIL_ADDRESS or EMAIL_PASSWORD not configured in .env")
+            return None
+        
+        config = cls()
+        return config
     
     @classmethod
     def get_email_service(cls, provider: str = 'gmail') -> Optional[EmailService]:
@@ -261,3 +476,112 @@ class EmailConfig:
             return service
         else:
             return None
+
+
+def send_email_via_service(recipient: str, subject: str, body: str, html_body: str = None, 
+                          cc_list: List[str] = None, bcc_list: List[str] = None, 
+                          config: EmailConfig = None) -> Dict[str, Any]:
+    """
+    Send email via SMTP using EmailConfig.
+    
+    Args:
+        recipient: Recipient email address
+        subject: Email subject
+        body: Plain text email body
+        html_body: HTML email body (optional)
+        cc_list: List of CC recipients (optional)
+        bcc_list: List of BCC recipients (optional)
+        config: EmailConfig instance (if None, uses current config)
+    
+    Returns:
+        Dictionary with 'success' (bool) and 'error' (str if failed) keys
+    """
+    try:
+        # Get config if not provided
+        if not config:
+            config = EmailConfig.get_current()
+            if not config:
+                return {
+                    "success": False,
+                    "error": "Email configuration not available (missing EMAIL_ADDRESS or EMAIL_PASSWORD)"
+                }
+        
+        # Validate credentials
+        if not config.from_address or not config.email_password:
+            return {
+                "success": False,
+                "error": "Email credentials not configured"
+            }
+        
+        # Create MIME message
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = config.from_address
+        msg['To'] = recipient
+        
+        # Add CC and BCC
+        if cc_list:
+            cc_str = ', '.join(cc_list)
+            msg['Cc'] = cc_str
+        
+        if bcc_list:
+            bcc_str = ', '.join(bcc_list)
+            msg['Bcc'] = bcc_str
+        
+        # Attach body parts
+        msg.attach(MIMEText(body, 'plain'))
+        if html_body:
+            msg.attach(MIMEText(html_body, 'html'))
+        
+        # Build recipient list for sending
+        recipients = [recipient]
+        if cc_list:
+            recipients.extend(cc_list)
+        if bcc_list:
+            recipients.extend(bcc_list)
+        
+        # Connect and send
+        logger.info(f"📧 Connecting to SMTP: {config.smtp_server}:{config.smtp_port} (SSL={config.use_ssl})")
+        
+        if config.use_ssl:
+            server = smtplib.SMTP_SSL(config.smtp_server, int(config.smtp_port), timeout=10)
+        else:
+            server = smtplib.SMTP(config.smtp_server, int(config.smtp_port), timeout=10)
+            server.starttls()
+        
+        try:
+            logger.info(f"🔐 Logging in as {config.from_address}")
+            server.login(config.from_address, config.email_password)
+            
+            logger.info(f"📨 Sending email to {recipient}")
+            server.sendmail(config.from_address, recipients, msg.as_string())
+            
+            logger.info(f"✅ Email sent successfully to {recipient}")
+            return {
+                "success": True,
+                "message": f"Email sent to {recipient}"
+            }
+        finally:
+            server.quit()
+    
+    except smtplib.SMTPAuthenticationError as e:
+        error_msg = f"SMTP authentication failed: {str(e)}"
+        logger.error(f"❌ {error_msg}")
+        return {
+            "success": False,
+            "error": error_msg
+        }
+    except smtplib.SMTPException as e:
+        error_msg = f"SMTP error: {str(e)}"
+        logger.error(f"❌ {error_msg}")
+        return {
+            "success": False,
+            "error": error_msg
+        }
+    except Exception as e:
+        error_msg = f"Failed to send email: {str(e)}"
+        logger.error(f"❌ {error_msg}")
+        return {
+            "success": False,
+            "error": error_msg
+        }

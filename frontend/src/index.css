@@ -2,13 +2,236 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme CSS Custom Properties */
+:root {
+  --color-primary: #3b82f6;
+  --color-primary-dark: #1e40af;
+  --color-secondary: #1f2937;
+  --color-secondary-dark: #111827;
+  --color-accent: #f59e0b;
+  --color-accent-dark: #d97706;
+  --color-background: #ffffff;
+  --color-text: #000000;
+  --color-text-light: #4b5563;
+  --color-border: #e5e7eb;
+  --color-border-light: #f3f4f6;
+  --font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-size-base: 14px;
+  --radius: 0.5rem;
+  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+@layer base {
+  /* Apply theme to root elements */
+  html {
+    color-scheme: light;
+  }
+  
+  body {
+    background-color: #f9fafb;
+    color: var(--color-text);
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+  }
+  
+  /* Links use primary color */
+  a {
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+  
+  a:hover {
+    color: var(--color-primary-dark);
+    text-decoration: underline;
+  }
+  
+  /* Headings */
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--color-text);
+    font-family: var(--font-family);
+  }
+  
+  /* Form elements */
+  input, textarea, select {
+    color: var(--color-text);
+    border-color: var(--color-border);
+    font-family: inherit;
+    font-size: inherit;
+  }
+  
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.1);
+  }
+  
+  /* Buttons - theme aware */
+  button {
+    font-family: inherit;
+    font-size: inherit;
+    transition: all 0.2s ease;
+  }
+  
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: var(--color-border-light);
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-secondary);
+  }
+}
+
+@layer components {
+  /* Primary button/background uses primary color */
+  .theme-primary,
+  .bg-brand-600,
+  .bg-brand-700 {
+    background-color: var(--color-primary);
+    color: white;
+  }
+  
+  .theme-primary:hover,
+  .bg-brand-600:hover,
+  .bg-brand-700:hover {
+    background-color: var(--color-primary-dark);
+  }
+  
+  /* Secondary button/background uses secondary color */
+  .theme-secondary,
+  .bg-gray-900 {
+    background-color: var(--color-secondary);
+    color: white;
+  }
+  
+  .theme-secondary:hover,
+  .bg-gray-900:hover {
+    background-color: var(--color-secondary-dark);
+  }
+  
+  /* Accent color for highlights */
+  .theme-accent {
+    background-color: var(--color-accent);
+    color: white;
+  }
+  
+  .theme-accent:hover {
+    background-color: var(--color-accent-dark);
+  }
+  
+  /* Text color utilities */
+  .text-primary {
+    color: var(--color-primary);
+  }
+  
+  .text-secondary {
+    color: var(--color-secondary);
+  }
+  
+  .text-accent {
+    color: var(--color-accent);
+  }
+  
+  /* Border utilities */
+  .border-primary {
+    border-color: var(--color-primary);
+  }
+  
+  .border-secondary {
+    border-color: var(--color-secondary);
+  }
+  
+  .border-accent {
+    border-color: var(--color-accent);
+  }
+  
+  /* Background utilities */
+  .bg-primary-light {
+    background-color: rgba(var(--color-primary-rgb), 0.1);
+  }
+  
+  .bg-secondary-light {
+    background-color: rgba(var(--color-secondary-rgb), 0.1);
+  }
+  
+  .bg-accent-light {
+    background-color: rgba(var(--color-accent-rgb), 0.1);
+  }
+}
+
 @layer components {
   .btn-primary {
-    @apply px-3 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply px-3 py-2 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    background-color: var(--color-button-bg, var(--color-primary, #3b82f6));
   }
+  
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--color-button-hover-bg, var(--color-primary-dark, #1e40af));
+  }
+  
+  .btn-primary:disabled {
+    background-color: var(--color-button-disabled-bg, #d1d5db);
+    color: var(--color-button-disabled-text, #6b7280);
+  }
+  
   .btn-secondary {
-    @apply px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-medium transition-colors disabled:opacity-50;
+    @apply px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-50;
+    background-color: #f3f4f6;
+    color: #374151;
   }
+  
+  .btn-secondary:hover:not(:disabled) {
+    background-color: #e5e7eb;
+  }
+  
+  .btn-success {
+    @apply px-3 py-2 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    background-color: var(--color-success-background, #16a34a);
+  }
+  
+  .btn-success:hover:not(:disabled) {
+    background-color: #15803d;
+  }
+  
+  .btn-danger {
+    @apply px-3 py-2 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    background-color: var(--color-error-background, #dc2626);
+  }
+  
+  .btn-danger:hover:not(:disabled) {
+    background-color: #b91c1c;
+  }
+  
+  .btn-warning {
+    @apply px-3 py-2 text-gray-900 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    background-color: var(--color-warning-background, #f59e0b);
+  }
+  
+  .btn-warning:hover:not(:disabled) {
+    background-color: #d97706;
+  }
+  
+  .btn-info {
+    @apply px-3 py-2 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    background-color: var(--color-info-background, #0ea5e9);
+  }
+  
+  .btn-info:hover:not(:disabled) {
+    background-color: #0284c7;
+  }
+  
   .input {
     @apply w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400;
   }
@@ -19,7 +242,7 @@
 
 body {
   @apply bg-gray-50 text-gray-900;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-family, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
 }
 
 /* Rendered Markdown in chat answers */

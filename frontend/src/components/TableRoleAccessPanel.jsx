@@ -189,6 +189,36 @@ export default function TableRoleAccessPanel() {
     }
   }
 
+  const handleCleanupStale = async () => {
+    if (!window.confirm('Remove tables from the Access tab that are no longer in your source database? This will delete the table-role access records for those tables.')) {
+      return
+    }
+    
+    setSaving(true)
+    setMessage(null)
+    try {
+      const { data } = await api.post('/api/auth-config/table-role-access/cleanup-stale', {})
+      if (data.success) {
+        await loadData()
+        if (data.stale_count > 0) {
+          setMessage({ 
+            type: 'success', 
+            text: `✅ Removed ${data.stale_count} stale table(s): ${data.stale_tables.join(', ')}` 
+          })
+        } else {
+          setMessage({ 
+            type: 'success', 
+            text: 'No stale tables found - your configuration is clean!' 
+          })
+        }
+      }
+    } catch (e) {
+      setMessage({ type: 'error', text: handleApiError(e).message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -304,6 +334,12 @@ export default function TableRoleAccessPanel() {
             disabled={loading}
             className="btn-secondary text-xs flex items-center gap-1 py-1.5">
             <RefreshCw size={14} /> Refresh
+          </button>
+          <button 
+            onClick={handleCleanupStale}
+            disabled={saving}
+            className="btn-warning text-xs flex items-center gap-1 py-1.5">
+            <AlertCircle size={14} /> {saving ? 'Cleaning...' : 'Remove Stale Tables'}
           </button>
         </div>
       )}

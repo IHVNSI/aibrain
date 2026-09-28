@@ -9,7 +9,7 @@ from sqlalchemy.engine import make_url
 from flask import Blueprint, request, jsonify, has_app_context, current_app
 
 from ..config import Config
-from ..models import Setting
+from ..models import Setting, AuthConfig, SecuritySetting, TrainingItem
 from ..extensions import db
 from ..llm import get_llm_settings, build_llm
 from ..bootstrap import get_vector_settings, get_db_settings, reinitialize_vanna
@@ -166,7 +166,46 @@ def get_db():
 @settings_bp.route("/database", methods=["POST"])
 def set_db():
     incoming = request.get_json(silent=True) or {}
-    Setting.set("db_config", {"source_db_url": incoming.get("source_db_url", "")})
+    new_db_url = incoming.get("source_db_url", "").strip()
+    current_db_url = get_db_settings().get("source_db_url", "").strip()
+    
+    # Check if database URL is changing
+    if new_db_url and new_db_url != current_db_url:
+        logger.info(f"🔄 Source database changing - clearing auth, security config, and training data")
+        logger.debug(f"   Old: {current_db_url[:50]}..." if current_db_url else "   Old: (empty)")
+        logger.debug(f"   New: {new_db_url[:50]}...")
+        
+        # Clear AuthConfig and SecuritySetting for the old database
+        try:
+            AuthConfig.query.delete()
+            SecuritySetting.query.delete()
+            logger.info("✓ Cleared AuthConfig and SecuritySetting")
+        except Exception as e:
+            logger.warning(f"Failed to clear auth config: {e}")
+        
+        # Clear all training data (especially auto-trained schemas from old database)
+        try:
+            svc = get_vanna_service()
+            if svc and svc.ready:
+                cleared = svc.clear_all_training()
+                logger.info(f"✓ Cleared {cleared} training items from Vanna vector store")
+        except Exception as e:
+            logger.warning(f"Failed to clear Vanna training data: {e}")
+        
+        # Clear all training item records from SQLite
+        try:
+            TrainingItem.query.delete()
+            logger.info("✓ Cleared all training items from database")
+        except Exception as e:
+            logger.warning(f"Failed to clear training items: {e}")
+        
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error committing cleanup: {e}")
+    
+    Setting.set("db_config", {"source_db_url": new_db_url})
     status = reinitialize_vanna()
     return jsonify({"success": True, "config": get_db_settings(), "engine": status}), 200
 
@@ -193,6 +232,71 @@ def test_db():
             "success": False, 
             "error": str(exc),
             "guidance": "Verify SOURCE_DB_URL credentials, hostname, port, and that database is accessible"
+        }), 400
+
+
+@settings_bp.route("/database/refresh", methods=["POST"])
+def refresh_db():
+    """Refresh source database connection and clean old Vanna/vector data.
+    
+    This endpoint:
+    1. Tests connection to the new source database
+    2. Detects if SOURCE_DB_URL has changed
+    3. Cleans up old vector stores (vanna_chroma, vanna_faiss)
+    4. Clears old training data from admin database
+    5. Retrains Vanna on the new database schema
+    """
+    incoming = request.get_json(silent=True) or {}
+    url = incoming.get("source_db_url") or get_db_settings()["source_db_url"]
+    
+    if not url:
+        return jsonify({
+            "success": False, 
+            "error": "No database URL provided.",
+            "guidance": "Set SOURCE_DB_URL environment variable or provide source_db_url in request body"
+        }), 400
+    
+    try:
+        # Step 1: Test connection to new database
+        from sqlalchemy import create_engine, text
+        engine = create_engine(url)
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        logger.info(f"✓ Connection OK to {url}")
+        
+        # Step 2: Run database migration (cleanup old artifacts)
+        from ..db_migration_manager import DatabaseMigrationOrchestrator, DatabaseChangeDetector
+        
+        # Update the SOURCE_DB_URL before migration
+        DatabaseChangeDetector.save_current_db_url(url)
+        
+        # Run full migration cleanup
+        migration_result = DatabaseMigrationOrchestrator.migrate_database(db.session)
+        logger.info(f"Migration result: {migration_result}")
+        
+        # Step 3: Reinitialize Vanna to train on new database
+        logger.info("Reinitializing Vanna service...")
+        reinit_result = reinitialize_vanna()
+        logger.info(f"Vanna reinitialization: {reinit_result}")
+        
+        return jsonify({
+            "success": True,
+            "message": "Database refreshed successfully",
+            "connection": "Connection OK to new database",
+            "migration": {
+                "migration_needed": migration_result.get("migration_needed", False),
+                "steps_completed": len(migration_result.get("steps_completed", [])),
+                "errors": migration_result.get("errors", [])
+            },
+            "vanna": reinit_result
+        }), 200
+        
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"Database refresh failed: {exc}", exc_info=True)
+        return jsonify({
+            "success": False, 
+            "error": str(exc),
+            "guidance": "Check database connection and ensure backend has permissions to clean vector stores"
         }), 400
 
 
@@ -975,7 +1079,10 @@ def get_ai_context():
                 "response_rules": "",
                 "business_rules": "",
                 "data_isolation_rules": "",
-                "vocabulary": ""
+                "vocabulary": "",
+                "email_response_rules": "",
+                "whatsapp_response_rules": "",
+                "parent_app_description": ""
             }
         }), 200
     except Exception as e:
@@ -1020,6 +1127,9 @@ def update_ai_context():
         ai_context.business_rules = data.get('business_rules', '')
         ai_context.data_isolation_rules = data.get('data_isolation_rules', '')
         ai_context.vocabulary = data.get('vocabulary', '')
+        ai_context.email_response_rules = data.get('email_response_rules', '')
+        ai_context.whatsapp_response_rules = data.get('whatsapp_response_rules', '')
+        ai_context.parent_app_description = data.get('parent_app_description', '')
         ai_context.updated_by = user_id
         
         db.session.commit()
@@ -1065,6 +1175,9 @@ def reset_ai_context_to_default():
             business_rules='',
             data_isolation_rules='',
             vocabulary='',
+            email_response_rules='',
+            whatsapp_response_rules='',
+            parent_app_description='',
             updated_by=user_id
         )
         db.session.add(ai_context)

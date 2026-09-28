@@ -463,7 +463,7 @@ function AudioConfigPanel() {
               <button
                 onClick={testSTT}
                 disabled={loading}
-                className="w-full mt-3 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded font-medium disabled:opacity-50"
+                className="btn-primary w-full mt-3 text-xs"
               >
                 {loading ? 'Testing...' : 'Test STT'}
               </button>
@@ -500,7 +500,7 @@ function AudioConfigPanel() {
               <button
                 onClick={testTTS}
                 disabled={testingAudio}
-                className="w-full mt-3 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded font-medium disabled:opacity-50"
+                className="btn-primary w-full mt-3 text-xs"
               >
                 {testingAudio ? 'Playing...' : 'Test TTS'}
               </button>

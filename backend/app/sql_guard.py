@@ -2,9 +2,12 @@
 
 Enforces:
   * Least privilege at the statement level: ONLY a single read-only SELECT/WITH
-    statement is allowed. Destructive / DDL / DML commands are blocked.
+    statement is allowed. Additional SQL command restrictions can be configured
+    via the Security UI tab (RestrictedSQLCommand table) or restricted_keywords setting.
   * Automatic default LIMIT to prevent runaway result sets.
   * Basic prompt-injection / multi-statement sanitization.
+  * Hardcoded restrictions on truly dangerous system-level commands (GRANT, REVOKE,
+    PRAGMA, EXEC, etc.) that should never be allowed even if configured by admins.
 
 This complements (does not replace) connecting the pipeline to a DB user that
 has SELECT-only privileges — that remains the strongest guarantee.
@@ -16,8 +19,10 @@ from typing import Tuple
 logger = logging.getLogger(__name__)
 
 # Commands that must never run through the assistant.
-_FORBIDDEN = (
-    "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "TRUNCATE",
+# Only truly dangerous system-level commands are hardcoded here.
+# Other commands (INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, TRUNCATE, etc.) can be
+# configured via the Security UI tab using RestrictedSQLCommand model and restricted_keywords.
+FORBIDDEN = (
     "REPLACE", "MERGE", "GRANT", "REVOKE", "ATTACH", "DETACH", "VACUUM",
     "REINDEX", "PRAGMA", "EXEC", "EXECUTE", "CALL", "COPY", "INTO OUTFILE",
     "LOAD DATA",
@@ -46,7 +51,7 @@ def _dynamic_blocklist() -> list:
     Reads RestrictedSQLCommand rows (is_blocked) and the Setting 'restricted_keywords'
     (a list) configured in the Security tab. Safe if the DB/app context is absent.
     """
-    blocked = set(_FORBIDDEN)
+    blocked = set(FORBIDDEN)
     try:
         from .models import RestrictedSQLCommand, Setting
         for row in RestrictedSQLCommand.query.filter_by(is_blocked=True).all():
@@ -63,11 +68,18 @@ def _dynamic_blocklist() -> list:
     return sorted(blocked)
 
 
-def validate(sql: str) -> Tuple[bool, str]:
-    """Return (is_safe, reason). Only a single read-only SELECT/WITH allowed.
+def validate(sql: str, is_admin: bool = False) -> Tuple[bool, str]:
+    """Return (is_safe, reason). 
+    
+    For regular users: Only SELECT/WITH statements allowed (read-only).
+    For admins: SELECT/WITH/INSERT/UPDATE/DELETE allowed (full CRUD).
 
     Uses the static forbidden list PLUS any DB-configured restricted commands /
     keywords from the Security tab.
+    
+    Args:
+        sql: The SQL statement to validate
+        is_admin: Whether the user is an admin. If True, CRUD operations are allowed.
     """
     if not sql or not sql.strip():
         return False, "Empty SQL."
@@ -81,8 +93,23 @@ def validate(sql: str) -> Tuple[bool, str]:
         return False, "Multiple SQL statements are not allowed."
 
     upper = body.upper()
-    if not (upper.startswith("SELECT") or upper.startswith("WITH")):
-        return False, "Only read-only SELECT queries are allowed."
+    
+    # Check statement type
+    if is_admin:
+        # Admins can use SELECT, WITH, INSERT, UPDATE, DELETE
+        allowed_for_admin = (
+            upper.startswith("SELECT") or 
+            upper.startswith("WITH") or
+            upper.startswith("INSERT") or 
+            upper.startswith("UPDATE") or 
+            upper.startswith("DELETE")
+        )
+        if not allowed_for_admin:
+            return False, "Admin queries support SELECT, INSERT, UPDATE, DELETE, and WITH statements only. Other operations (DROP, ALTER, CREATE, TRUNCATE, etc.) are not allowed."
+    else:
+        # Regular users can only use SELECT and WITH
+        if not (upper.startswith("SELECT") or upper.startswith("WITH")):
+            return False, "Chat queries support read-only SELECT statements only. For data modifications (INSERT/UPDATE/DELETE), use the API endpoints with proper authorization. Contact admin for data modification permissions."
 
     for kw in _dynamic_blocklist():
         if re.search(rf"\b{re.escape(kw)}\b", upper):

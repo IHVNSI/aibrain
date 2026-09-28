@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import api from '../api/client'
 import { useWebSocket } from '../hooks/useWebSocket'
+import AuthorizedContactsPanel from '../components/AuthorizedContactsPanel'
+import RichTextEditor from '../components/RichTextEditor'
 import {
   Mail, Search, Inbox, Trash2, CheckCircle2, XCircle, Loader,
   Eye, EyeOff, Copy, RefreshCw, AlertCircle, Download, Settings, Lock, Wifi, WifiOff,
-  ChevronRight, X, Send, MessageSquare, Paperclip, Clock, User, FileText
+  ChevronRight, X, Send, MessageSquare, Paperclip, Clock, User, FileText, RotateCcw, Building
 } from 'lucide-react'
 import Swal from 'sweetalert2'
 
@@ -52,7 +54,11 @@ export default function EmailTab() {
   const [lastRefresh, setLastRefresh] = useState(null)
   const [unreadOnly, setUnreadOnly] = useState(false)
   const [sortOrder, setSortOrder] = useState('desc')
+
   const [sidebarOpen, setSidebarOpen] = useState(true)
+
+  // Refs
+  const selectAllCheckboxRef = useRef(null)
 
   // ========================================================================
   // STATE - AUTO-REPLY
@@ -66,6 +72,11 @@ export default function EmailTab() {
     reply_template: ''
   })
   const [autoReplyLoading, setAutoReplyLoading] = useState(false)
+
+  // ========================================================================
+  // STATE - AUTHORIZED EMAILS
+  // ========================================================================
+  const [showAuthorizedEmails, setShowAuthorizedEmails] = useState(false)
 
   // ========================================================================
   // STATE - COMPOSE/DRAFT
@@ -87,7 +98,30 @@ export default function EmailTab() {
   const [sentTotalPages, setSentTotalPages] = useState(1)
   const [sentLoading, setSentLoading] = useState(false)
   const [sentFilter, setSentFilter] = useState('all') // all, ai_only, replies, failed, pending
+
+  // ========================================================================
+  // STATE - SENDER INFO & VERIFICATION
+  // ========================================================================
+  const [senderInfo, setSenderInfo] = useState(null)
+  const [loadingSenderInfo, setLoadingSenderInfo] = useState(false)
   const [sentStats, setSentStats] = useState({ total: 0, ai: 0, replies: 0, failed: 0, pending: 0 })
+  const [selectedSentEmail, setSelectedSentEmail] = useState(null)
+  const [showSentEmailModal, setShowSentEmailModal] = useState(false)
+  const [deletingSentEmail, setDeletingSentEmail] = useState(false)
+
+  // ========================================================================
+  // STATE - BULK OPERATIONS
+  // ========================================================================
+  const [selectedEmailIds, setSelectedEmailIds] = useState(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [selectedSentEmailIds, setSelectedSentEmailIds] = useState(new Set())
+  const [bulkDeletingSent, setBulkDeletingSent] = useState(false)
+
+  // ========================================================================
+  // STATE - EMAIL SYNC
+  // ========================================================================
+  const [syncing, setSyncing] = useState(false)
+  const [syncStatus, setSyncStatus] = useState(null)
 
   // ========================================================================
   // EFFECTS
@@ -97,11 +131,18 @@ export default function EmailTab() {
   const { connected, subscribeEmails, unsubscribeEmails, lastEvent } = useWebSocket()
 
   useEffect(() => {
+    // Load essential data only: config and emails
     loadConfig()
     loadFolders()
     loadEmails('first-load')
-    loadAutoReplySettings()
-    loadDrafts()
+    
+    // Lazy-load optional data after 1 second to avoid page hang
+    const lazyLoadTimer = setTimeout(() => {
+      loadAutoReplySettings()
+      loadDrafts()
+    }, 1000)
+    
+    return () => clearTimeout(lazyLoadTimer)
   }, [])
 
   // Subscribe to email updates when WebSocket connects
@@ -148,6 +189,13 @@ export default function EmailTab() {
       setFilteredEmails(emails)
     }
   }, [searchQuery, emails])
+
+  // Update checkbox indeterminate state when selection changes
+  useEffect(() => {
+    if (selectAllCheckboxRef.current) {
+      selectAllCheckboxRef.current.indeterminate = selectedEmailIds.size > 0 && selectedEmailIds.size < filteredEmails.length
+    }
+  }, [selectedEmailIds, filteredEmails])
 
   // ========================================================================
   // API FUNCTIONS
@@ -239,9 +287,35 @@ export default function EmailTab() {
   const handleSelectEmail = (email) => {
     setSelectedEmail(email)
     setShowEmailModal(true)
-    // Mark as read
-    if (!email.is_read) {
+    setSenderInfo(null) // Reset sender info
+    
+    // Fetch sender contact information
+    fetchSenderInfo(email.from_address)
+    
+    // Only mark as read if auto-reply is disabled
+    // If auto-reply is enabled, let auto-processing handle it
+    if (!email.is_read && !autoReplySettings.enabled) {
       markAsRead(email.id)
+    } else if (!email.is_read && autoReplySettings.enabled) {
+      // If auto-reply is enabled, generate reply before marking as read
+      console.log('📧 Email viewed with auto-reply enabled, will process automatically')
+    }
+  }
+
+  const fetchSenderInfo = async (emailAddress) => {
+    try {
+      setLoadingSenderInfo(true)
+      const response = await api.post('/api/email/sender-info', {
+        email: emailAddress
+      })
+      if (response.data.success) {
+        setSenderInfo(response.data.contact)
+      }
+    } catch (error) {
+      console.error('Error fetching sender info:', error)
+      setSenderInfo(null)
+    } finally {
+      setLoadingSenderInfo(false)
     }
   }
 
@@ -265,9 +339,91 @@ export default function EmailTab() {
       const { data } = await api.get('/api/email/auto-reply/settings')
       if (data.success) {
         setAutoReplySettings(data.settings)
+        // Auto-process unread emails if auto-reply is enabled
+        if (data.settings.enabled) {
+          setTimeout(() => autoProcessUnreadEmails(data.settings), 500)
+        }
       }
     } catch (error) {
       console.error('Error loading auto-reply settings:', error)
+    }
+  }
+
+  const autoProcessUnreadEmails = async (settings) => {
+    try {
+      // Get unread emails from INBOX
+      const response = await api.get('/api/email/storage/inbox', {
+        params: {
+          unread_only: true,
+          per_page: 100,
+          page: 1
+        }
+      })
+
+      if (!response.data.success || !response.data.emails || response.data.emails.length === 0) {
+        console.log('✓ No unread emails to process')
+        return // No unread emails to process
+      }
+
+      const unreadEmails = response.data.emails
+      console.log(`📧 Auto-processing ${unreadEmails.length} unread email(s)...`)
+
+      let successCount = 0
+      let failCount = 0
+
+      // Process each unread email
+      for (const email of unreadEmails) {
+        try {
+          // Generate AI reply with database data using Vanna
+          const genResponse = await api.post('/api/email/auto-reply/generate', {
+            email_id: email.id
+          })
+
+          if (genResponse.data.success) {
+            const draft = genResponse.data.draft
+            const context = genResponse.data.context || {}
+            
+            // Mark email as read AFTER successful reply generation
+            await api.put(`/api/email/storage/${email.id}/mark-read`)
+
+            // For email auto-replies, always kept as draft for human review
+            // This ensures important business communications are reviewed before sending
+            console.log(`✓ Draft created for ${draft.to_address} (data_fetched=${context.data_fetched}, authorized=${context.sender_authorized})`)
+            successCount++
+          } else {
+            console.warn(`⚠ Failed to generate reply for ${email.from_address}: ${genResponse.data.error}`)
+            failCount++
+          }
+        } catch (error) {
+          console.error(`Error auto-processing email ${email.id}:`, error)
+          failCount++
+        }
+      }
+
+      // Reload emails and drafts to refresh UI
+      await loadEmails('auto-process')
+      await loadDrafts() // Show newly created drafts
+      
+      console.log(`📊 Auto-reply complete: ${successCount} processed, ${failCount} failed`)
+    } catch (error) {
+      console.error('Error auto-processing unread emails:', error)
+    }
+  }
+
+  const updateAutoReplySettings = async () => {
+    setAutoReplyLoading(true)
+    try {
+      const { data } = await api.post('/api/email/auto-reply/settings', autoReplySettings)
+      if (data.success) {
+        setMsg({ type: 'success', text: 'Auto-reply settings updated' })
+        setTimeout(() => setMsg(null), 2000)
+        setShowAutoReply(false)
+      }
+    } catch (error) {
+      console.error('Error updating auto-reply settings:', error)
+      setMsg({ type: 'error', text: 'Failed to update auto-reply settings' })
+    } finally {
+      setAutoReplyLoading(false)
     }
   }
 
@@ -283,6 +439,35 @@ export default function EmailTab() {
     } finally {
       setDraftsLoading(false)
     }
+  }
+
+  const deleteDraft = async (draftId) => {
+    // Confirm deletion
+    Swal.fire({
+      title: 'Delete Draft?',
+      text: 'This action cannot be undone.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Delete',
+      cancelButtonText: 'Cancel'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          const response = await api.delete(`/api/email/drafts/${draftId}`)
+          if (response.data.success) {
+            Swal.fire('Deleted', 'Draft has been deleted', 'success')
+            loadDrafts()
+          } else {
+            Swal.fire('Error', response.data.error || 'Failed to delete draft', 'error')
+          }
+        } catch (error) {
+          console.error('Error deleting draft:', error)
+          Swal.fire('Error', error.response?.data?.error || 'Failed to delete draft', 'error')
+        }
+      }
+    })
   }
 
   const loadSentEmails = async (page = 1, filter = 'all') => {
@@ -324,6 +509,187 @@ export default function EmailTab() {
       console.error('Error loading sent emails:', error)
     } finally {
       setSentLoading(false)
+    }
+  }
+
+  const deleteSentEmail = async (emailId) => {
+    try {
+      setDeletingSentEmail(true)
+      const { data } = await api.delete(`/api/email/storage/sent/${emailId}`)
+      
+      if (data.success) {
+        setMsg({ type: 'success', text: 'Email deleted successfully' })
+        setShowSentEmailModal(false)
+        setSelectedSentEmail(null)
+        loadSentEmails(sentPage, sentFilter)
+      } else {
+        setMsg({ type: 'error', text: data.error || 'Failed to delete email' })
+      }
+    } catch (error) {
+      console.error('Error deleting sent email:', error)
+      setMsg({ type: 'error', text: error.response?.data?.error || 'Failed to delete email' })
+    } finally {
+      setDeletingSentEmail(false)
+    }
+  }
+
+  // ========================================================================
+  // EMAIL SYNC
+  // ========================================================================
+  const triggerFullSync = async () => {
+    setSyncing(true)
+    try {
+      const { data } = await api.post('/api/email/sync/full')
+      if (data.success) {
+        setMsg({ type: 'success', text: '⬇️ Full email sync started - downloading all emails...' })
+        setSyncStatus(data.status)
+        // Wait a moment then refresh emails
+        setTimeout(() => {
+          loadFolders()
+          loadEmails('full-sync')
+        }, 2000)
+        setTimeout(() => setMsg(null), 4000)
+      } else {
+        setMsg({ type: 'error', text: data.error || 'Failed to start email sync' })
+      }
+    } catch (error) {
+      console.error('Error triggering full sync:', error)
+      setMsg({ type: 'error', text: error.response?.data?.error || 'Failed to start email sync' })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const getSyncStatus = async () => {
+    try {
+      const { data } = await api.get('/api/email/sync/status')
+      if (data.success) {
+        setSyncStatus(data.status)
+        return data.status
+      }
+    } catch (error) {
+      console.error('Error getting sync status:', error)
+    }
+  }
+
+  // ========================================================================
+  // BULK OPERATIONS
+  // ========================================================================
+  const toggleEmailSelection = (emailId) => {
+    const newSelected = new Set(selectedEmailIds)
+    if (newSelected.has(emailId)) {
+      newSelected.delete(emailId)
+    } else {
+      newSelected.add(emailId)
+    }
+    setSelectedEmailIds(newSelected)
+  }
+
+  const selectAllEmails = () => {
+    const allIds = new Set(filteredEmails.map(e => e.id))
+    setSelectedEmailIds(allIds)
+  }
+
+  const clearAllSelections = () => {
+    setSelectedEmailIds(new Set())
+  }
+
+  const bulkDeleteEmails = async () => {
+    if (selectedEmailIds.size === 0) {
+      setMsg({ type: 'error', text: 'No emails selected' })
+      return
+    }
+
+    const result = await Swal.fire({
+      title: 'Delete Selected Emails?',
+      text: `Are you sure you want to permanently delete ${selectedEmailIds.size} email(s)? This action cannot be undone.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Delete',
+      confirmButtonColor: '#dc2626',
+      cancelButtonText: 'Cancel'
+    })
+
+    if (!result.isConfirmed) return
+
+    try {
+      setBulkDeleting(true)
+      const { data } = await api.post('/api/email/storage/delete-bulk', {
+        email_ids: Array.from(selectedEmailIds)
+      })
+
+      if (data.success) {
+        setMsg({ type: 'success', text: `✓ Deleted ${data.deleted_count} email(s)` })
+        setSelectedEmailIds(new Set())
+        loadEmails('bulk-delete')
+        setTimeout(() => setMsg(null), 3000)
+      } else {
+        setMsg({ type: 'error', text: data.error || 'Failed to delete emails' })
+      }
+    } catch (error) {
+      console.error('Error bulk deleting emails:', error)
+      setMsg({ type: 'error', text: error.response?.data?.error || 'Failed to delete emails' })
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
+  const toggleSentEmailSelection = (emailId) => {
+    const newSelected = new Set(selectedSentEmailIds)
+    if (newSelected.has(emailId)) {
+      newSelected.delete(emailId)
+    } else {
+      newSelected.add(emailId)
+    }
+    setSelectedSentEmailIds(newSelected)
+  }
+
+  const selectAllSentEmails = () => {
+    const allIds = new Set(sentEmails.map(e => e.id))
+    setSelectedSentEmailIds(allIds)
+  }
+
+  const clearAllSentSelections = () => {
+    setSelectedSentEmailIds(new Set())
+  }
+
+  const bulkDeleteSentEmails = async () => {
+    if (selectedSentEmailIds.size === 0) {
+      setMsg({ type: 'error', text: 'No emails selected' })
+      return
+    }
+
+    const result = await Swal.fire({
+      title: 'Delete Selected Sent Emails?',
+      text: `Are you sure you want to permanently delete ${selectedSentEmailIds.size} email(s)? This action cannot be undone.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Delete',
+      confirmButtonColor: '#dc2626',
+      cancelButtonText: 'Cancel'
+    })
+
+    if (!result.isConfirmed) return
+
+    try {
+      setBulkDeletingSent(true)
+      const { data } = await api.post('/api/email/storage/sent/delete-bulk', {
+        email_ids: Array.from(selectedSentEmailIds)
+      })
+
+      if (data.success) {
+        setMsg({ type: 'success', text: `✓ Deleted ${data.deleted_count} email(s)` })
+        setSelectedSentEmailIds(new Set())
+        loadSentEmails(sentPage, sentFilter)
+        setTimeout(() => setMsg(null), 3000)
+      } else {
+        setMsg({ type: 'error', text: data.error || 'Failed to delete emails' })
+      }
+    } catch (error) {
+      console.error('Error bulk deleting sent emails:', error)
+      setMsg({ type: 'error', text: error.response?.data?.error || 'Failed to delete emails' })
+    } finally {
+      setBulkDeletingSent(false)
     }
   }
 
@@ -469,8 +835,24 @@ export default function EmailTab() {
       })
 
       if (response.data.success) {
-        Swal.fire('Success', 'Auto-reply draft created with AI context', 'success')
-        loadDrafts()
+        // Get the generated draft with AI reply
+        const draft = response.data.draft
+        
+        // Pre-fill the compose form with the AI-generated reply
+        setDraftForm({
+          to_address: draft.to_address,
+          cc_address: draft.cc_address || '',
+          bcc_address: draft.bcc_address || '',
+          subject: draft.subject,
+          body: draft.body
+        })
+        setReplyingTo(emailId)
+        
+        // Close email modal and open compose form
+        setShowEmailModal(false)
+        setShowCompose(true)
+        
+        Swal.fire('Success', '✓ AI reply generated! Review and send from compose form.', 'success')
       } else {
         Swal.fire('Error', response.data.error || 'Failed to generate auto-reply', 'error')
       }
@@ -519,6 +901,49 @@ export default function EmailTab() {
               </div>
             </div>
 
+            {/* Sender Contact Info - If available */}
+            {loadingSenderInfo ? (
+              <div className="flex items-center gap-2 py-3 px-4 bg-blue-50 rounded-lg border border-blue-200">
+                <Loader size={16} className="animate-spin text-blue-600" />
+                <span className="text-sm text-blue-700">Verifying contact...</span>
+              </div>
+            ) : senderInfo ? (
+              <div className="bg-green-50 rounded-lg border border-green-200 p-4">
+                <div className="flex items-start gap-3">
+                  <Building size={18} className="text-green-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-green-900">
+                      ✓ {senderInfo.type === 'customer' ? '👤 Customer' : '👨‍💼 Employee'} Found
+                    </h3>
+                    {senderInfo.name && (
+                      <p className="text-sm text-green-800 mt-1">
+                        <strong>Name:</strong> {senderInfo.name}
+                      </p>
+                    )}
+                    {senderInfo.organization && (
+                      <p className="text-sm text-green-800">
+                        <strong>Organization:</strong> {senderInfo.organization}
+                      </p>
+                    )}
+                    {senderInfo.phone && (
+                      <p className="text-sm text-green-800">
+                        <strong>Phone:</strong> {senderInfo.phone}
+                      </p>
+                    )}
+                    <p className="text-xs text-green-600 mt-2">
+                      Found in: {senderInfo.table} table
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                <p className="text-sm text-gray-600">
+                  ℹ️ Contact information not found in database
+                </p>
+              </div>
+            )}
+
             {/* Date */}
             <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
               <Clock size={20} className="text-gray-400" />
@@ -556,19 +981,19 @@ export default function EmailTab() {
                   startCompose(selectedEmail)
                   setShowEmailModal(false)
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
+                className="btn-primary flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition"
               >
                 <Mail size={16} /> Reply
               </button>
 
-              {autoReplySettings.enabled && !selectedEmail.is_read && (
+              {autoReplySettings.enabled && (
                 <button
                   onClick={() => {
                     generateAutoReply(selectedEmail.id)
                     setShowEmailModal(false)
                   }}
                   disabled={composing}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition"
+                  className="btn-success flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition disabled:bg-gray-400"
                 >
                   {composing ? <Loader size={16} className="animate-spin" /> : <MessageSquare size={16} />}
                   AI Reply
@@ -577,7 +1002,7 @@ export default function EmailTab() {
 
               <button
                 onClick={() => copyToClipboard(selectedEmail.from_address)}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition"
+                className="btn-secondary flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition"
               >
                 <Copy size={16} /> Copy Email
               </button>
@@ -612,9 +1037,41 @@ export default function EmailTab() {
             {loading ? <Loader size={20} className="animate-spin text-blue-600" /> : <RefreshCw size={20} className="text-gray-600" />}
           </button>
           <button
+            onClick={triggerFullSync}
+            disabled={syncing || loading}
+            className="p-2 hover:bg-blue-50 rounded-lg transition flex items-center gap-2"
+            title="Download All Emails"
+          >
+            {syncing ? (
+              <>
+                <Loader size={20} className="animate-spin text-blue-600" />
+                <span className="text-sm text-blue-600 font-medium">Syncing...</span>
+              </>
+            ) : (
+              <>
+                <Download size={20} className="text-blue-600" />
+                <span className="text-sm text-gray-700 font-medium">Sync All</span>
+              </>
+            )}
+          </button>
+          <button
+            onClick={() => setShowAutoReply(!showAutoReply)}
+            className="p-2 hover:bg-green-50 rounded-lg transition"
+            title="Auto-Reply Settings"
+          >
+            <MessageSquare size={20} className={showAutoReply ? 'text-green-600' : 'text-gray-600'} />
+          </button>
+          <button
+            onClick={() => setShowAuthorizedEmails(!showAuthorizedEmails)}
+            className="p-2 hover:bg-blue-50 rounded-lg transition"
+            title="Authorized Emails"
+          >
+            <Lock size={20} className={showAuthorizedEmails ? 'text-blue-600' : 'text-gray-600'} />
+          </button>
+          <button
             onClick={() => setShowConfig(!showConfig)}
             className="p-2 hover:bg-gray-100 rounded-lg transition"
-            title="Settings"
+            title="Email Settings"
           >
             <Settings size={20} className="text-gray-600" />
           </button>
@@ -642,7 +1099,7 @@ export default function EmailTab() {
               {/* Compose Button */}
               <button
                 onClick={() => startCompose()}
-                className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition flex items-center justify-center gap-2 mb-4"
+                className="btn-primary w-full px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 mb-4"
               >
                 <Mail size={18} /> Compose
               </button>
@@ -773,7 +1230,7 @@ export default function EmailTab() {
                   <button
                     onClick={() => { setCurrentPage(1); loadEmails() }}
                     disabled={loading}
-                    className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
+                    className="btn-primary w-full px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 disabled:bg-gray-400"
                   >
                     {loading ? <Loader size={16} className="animate-spin" /> : null}
                     Load
@@ -803,11 +1260,46 @@ export default function EmailTab() {
                   <p>No emails found</p>
                 </div>
               ) : (
-                <div className="bg-white">
+                <div className="bg-white flex flex-col h-full">
+                  {/* Bulk Action Toolbar */}
+                  {selectedEmailIds.size > 0 && (
+                    <div className="bg-blue-50 border-b border-blue-200 px-4 py-3 flex items-center justify-between">
+                      <div className="text-sm font-medium text-blue-900">
+                        {selectedEmailIds.size} email(s) selected
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={clearAllSelections}
+                          className="btn-secondary px-3 py-1 text-sm rounded transition"
+                        >
+                          Clear
+                        </button>
+                        <button
+                          onClick={bulkDeleteEmails}
+                          disabled={bulkDeleting}
+                          className="btn-danger px-3 py-1 text-sm rounded transition flex items-center gap-1 disabled:bg-gray-400"
+                        >
+                          {bulkDeleting ? <Loader size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                          Delete Selected
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
+                    <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 w-12"></th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 w-12">
+                          <input
+                            ref={selectAllCheckboxRef}
+                            type="checkbox"
+                            checked={selectedEmailIds.size > 0 && selectedEmailIds.size === filteredEmails.length}
+                            onChange={(e) => e.target.checked ? selectAllEmails() : clearAllSelections()}
+                            className="w-4 h-4 rounded border-gray-300 cursor-pointer"
+                            title="Select all emails on this page"
+                          />
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600"></th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">From</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Subject</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Date</th>
@@ -818,29 +1310,58 @@ export default function EmailTab() {
                       {filteredEmails.map((email, idx) => (
                         <tr
                           key={email.id}
-                          onClick={() => handleSelectEmail(email)}
-                          className={`border-b border-gray-100 hover:bg-blue-50 cursor-pointer transition ${
-                            !email.is_read ? 'bg-blue-50 font-semibold' : ''
-                          }`}
+                          className={`border-b border-gray-200 cursor-pointer transition ${
+                            !email.is_read ? 'bg-blue-50 font-semibold' : 'hover:bg-gray-50'
+                          } ${selectedEmailIds.has(email.id) ? 'bg-blue-100' : ''}`}
                         >
-                          <td className="px-4 py-3 text-center">
+                          <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={selectedEmailIds.has(email.id)}
+                              onChange={() => toggleEmailSelection(email.id)}
+                              className="w-4 h-4 rounded border-gray-300 cursor-pointer"
+                            />
+                          </td>
+                          <td 
+                            className="px-4 py-3 text-center cursor-pointer"
+                            onClick={() => handleSelectEmail(email)}
+                          >
                             {!email.is_read && <div className="w-2 h-2 bg-blue-600 rounded-full mx-auto"></div>}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate">
+                          <td 
+                            className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate cursor-pointer"
+                            onClick={() => handleSelectEmail(email)}
+                          >
                             {email.from_address}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-800 max-w-lg truncate">
+                          <td 
+                            className="px-4 py-3 text-sm text-gray-800 max-w-lg truncate cursor-pointer"
+                            onClick={() => handleSelectEmail(email)}
+                          >
                             {email.subject || '(no subject)'}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                          <td 
+                            className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap cursor-pointer"
+                            onClick={() => handleSelectEmail(email)}
+                          >
                             {new Date(email.received_date).toLocaleDateString()}
                           </td>
-                          <td className="px-4 py-3 text-center">
+                          <td className="px-4 py-3 text-center flex items-center justify-center gap-2">
                             {!email.is_read && (
                               <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded font-medium">
                                 Unread
                               </span>
                             )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                startCompose(email)
+                              }}
+                              className="p-1 hover:bg-blue-50 rounded transition"
+                              title="Reply to this email"
+                            >
+                              <RotateCcw size={16} className="text-blue-600" />
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -897,7 +1418,7 @@ export default function EmailTab() {
                 <h2 className="text-lg font-semibold text-gray-900">Drafts</h2>
                 <button
                   onClick={() => startCompose()}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition flex items-center gap-2"
+                  className="btn-primary px-4 py-2 rounded-lg font-medium transition flex items-center gap-2"
                 >
                   <Mail size={16} /> New Draft
                 </button>
@@ -934,7 +1455,7 @@ export default function EmailTab() {
                             setDraftForm(draft)
                             setShowCompose(true)
                           }}
-                          className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition"
+                          className="btn-primary px-3 py-1 text-sm rounded transition"
                         >
                           Edit
                         </button>
@@ -943,9 +1464,16 @@ export default function EmailTab() {
                             setDraftForm(draft)
                             sendDirectEmail()
                           }}
-                          className="px-3 py-1 text-sm bg-green-600 hover:bg-green-700 text-white rounded transition flex items-center gap-1"
+                          className="btn-success px-3 py-1 text-sm rounded transition flex items-center gap-1"
                         >
                           <Send size={12} /> Send
+                        </button>
+                        <button
+                          onClick={() => deleteDraft(draft.id)}
+                          className="btn-danger px-3 py-1 text-sm rounded transition flex items-center gap-1"
+                          title="Delete this draft"
+                        >
+                          <Trash2 size={12} /> Delete
                         </button>
                       </div>
                     </div>
@@ -1026,73 +1554,123 @@ export default function EmailTab() {
                   <p>No {sentFilter !== 'all' ? sentFilter + ' ' : ''}sent emails</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {sentEmails.map(email => (
-                    <div key={email.id} className="bg-white rounded-lg border border-gray-200 p-4 hover:border-blue-300 transition">
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <div className="flex-1 min-w-0">
-                          {/* Recipients */}
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="text-sm font-medium text-gray-900">To: {email.to_address}</p>
-                            {/* Status Badge */}
-                            {email.status === 'sent' && (
-                              <span className="inline-block text-xs bg-green-100 text-green-800 px-2 py-1 rounded font-medium">
-                                ✓ Sent
-                              </span>
-                            )}
-                            {email.status === 'failed' && (
-                              <span className="inline-block text-xs bg-red-100 text-red-800 px-2 py-1 rounded font-medium">
-                                ✗ Failed
-                              </span>
-                            )}
-                            {email.status === 'pending' && (
-                              <span className="inline-block text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded font-medium">
-                                ⏳ Pending
-                              </span>
-                            )}
-                          </div>
+                <div>
+                  {/* Bulk Action Toolbar */}
+                  {selectedSentEmailIds.size > 0 && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-4 flex items-center justify-between">
+                      <div className="text-sm font-medium text-blue-900">
+                        {selectedSentEmailIds.size} email(s) selected
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={clearAllSentSelections}
+                          className="btn-secondary px-3 py-1 text-sm rounded transition"
+                        >
+                          Clear
+                        </button>
+                        <button
+                          onClick={bulkDeleteSentEmails}
+                          disabled={bulkDeletingSent}
+                          className="btn-danger px-3 py-1 text-sm rounded transition flex items-center gap-1 disabled:bg-gray-400"
+                        >
+                          {bulkDeletingSent ? <Loader size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                          Delete Selected
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
-                          {/* CC/BCC */}
-                          {email.cc_address && <p className="text-xs text-gray-600">CC: {email.cc_address}</p>}
-                          {email.bcc_address && <p className="text-xs text-gray-600">BCC: {email.bcc_address}</p>}
+                  <div className="space-y-3">
+                    {sentEmails.map(email => (
+                      <div 
+                        key={email.id}
+                        className={`bg-white rounded-lg border transition cursor-pointer flex items-start gap-3 p-4 ${
+                          selectedSentEmailIds.has(email.id)
+                            ? 'border-blue-400 bg-blue-50'
+                            : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
+                        }`}
+                      >
+                        {/* Checkbox */}
+                        <div className="pt-1" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedSentEmailIds.has(email.id)}
+                            onChange={() => toggleSentEmailSelection(email.id)}
+                            className="w-4 h-4 rounded border-gray-300 cursor-pointer mt-1"
+                          />
+                        </div>
 
-                          {/* Subject */}
-                          <p className="text-sm text-gray-700 font-semibold">{email.subject}</p>
+                        {/* Email Content */}
+                        <div 
+                          className="flex-1 min-w-0"
+                          onClick={() => { setSelectedSentEmail(email); setShowSentEmailModal(true) }}
+                        >
+                          <div className="flex items-start justify-between gap-3 mb-2">
+                            <div className="flex-1 min-w-0">
+                              {/* Recipients */}
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="text-sm font-medium text-gray-900">To: {email.to_address}</p>
+                                {/* Status Badge */}
+                                {email.status === 'sent' && (
+                                  <span className="inline-block text-xs bg-green-100 text-green-800 px-2 py-1 rounded font-medium">
+                                    ✓ Sent
+                                  </span>
+                                )}
+                                {email.status === 'failed' && (
+                                  <span className="inline-block text-xs bg-red-100 text-red-800 px-2 py-1 rounded font-medium">
+                                    ✗ Failed
+                                  </span>
+                                )}
+                                {email.status === 'pending' && (
+                                  <span className="inline-block text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded font-medium">
+                                    ⏳ Pending
+                                  </span>
+                                )}
+                              </div>
 
-                          {/* Metadata */}
-                          <div className="flex items-center gap-2 text-xs text-gray-500 mt-2">
-                            <span>Sent: {new Date(email.sent_at).toLocaleString()}</span>
-                            {email.ai_generated && (
-                              <span className="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded font-medium">
-                                🤖 AI Generated
-                              </span>
-                            )}
-                            {email.in_reply_to && (
-                              <span className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded font-medium">
-                                ↩️ Reply to Email #{email.in_reply_to}
-                              </span>
-                            )}
-                            {email.from_draft && (
-                              <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded font-medium">
-                                📝 From Draft #{email.from_draft}
-                              </span>
-                            )}
-                          </div>
+                              {/* CC/BCC */}
+                              {email.cc_address && <p className="text-xs text-gray-600">CC: {email.cc_address}</p>}
+                              {email.bcc_address && <p className="text-xs text-gray-600">BCC: {email.bcc_address}</p>}
 
-                          {/* Error Message */}
-                          {email.error_message && (
-                            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
-                              <p className="font-medium">Error:</p>
-                              <p>{email.error_message}</p>
+                              {/* Subject */}
+                              <p className="text-sm text-gray-700 font-semibold">{email.subject}</p>
+
+                              {/* Metadata */}
+                              <div className="flex items-center gap-2 text-xs text-gray-500 mt-2 flex-wrap">
+                                <span>Sent: {new Date(email.sent_at).toLocaleString()}</span>
+                                {email.ai_generated && (
+                                  <span className="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded font-medium">
+                                    🤖 AI Generated
+                                  </span>
+                                )}
+                                {email.in_reply_to && (
+                                  <span className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded font-medium">
+                                    ↩️ Reply to Email #{email.in_reply_to}
+                                  </span>
+                                )}
+                                {email.from_draft && (
+                                  <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded font-medium">
+                                    📝 From Draft #{email.from_draft}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Error Message */}
+                              {email.error_message && (
+                                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                                  <p className="font-medium">Error:</p>
+                                  <p>{email.error_message}</p>
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </div>
+
+                          {/* Email Body Preview */}
+                          <p className="text-sm text-gray-700 line-clamp-3 bg-gray-50 p-2 rounded">{email.body}</p>
                         </div>
                       </div>
-
-                      {/* Email Body Preview */}
-                      <p className="text-sm text-gray-700 line-clamp-3 bg-gray-50 p-2 rounded">{email.body}</p>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -1198,12 +1776,10 @@ export default function EmailTab() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
-                <textarea
+                <RichTextEditor 
                   value={draftForm.body}
-                  onChange={(e) => setDraftForm({ ...draftForm, body: e.target.value })}
-                  rows={6}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                  placeholder="Write your message..."
+                  onChange={(html) => setDraftForm({ ...draftForm, body: html })}
+                  placeholder="Write your message (supports formatting, links, images)..."
                 />
               </div>
             </div>
@@ -1211,7 +1787,7 @@ export default function EmailTab() {
             <div className="border-t border-gray-200 px-6 py-4 flex gap-2 justify-end">
               <button
                 onClick={() => setShowCompose(false)}
-                className="px-4 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition"
+                className="btn-secondary px-4 py-2 rounded-lg font-medium transition"
               >
                 Cancel
               </button>
@@ -1224,7 +1800,7 @@ export default function EmailTab() {
               <button
                 onClick={sendDirectEmail}
                 disabled={composing}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition"
+                className="btn-primary flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition disabled:bg-gray-400"
               >
                 {composing ? <Loader size={16} className="animate-spin" /> : <Send size={16} />}
                 Send
@@ -1365,14 +1941,14 @@ export default function EmailTab() {
             <div className="border-t border-gray-200 px-6 py-4 flex gap-2 justify-end sticky bottom-0 bg-white">
               <button
                 onClick={() => setShowConfig(false)}
-                className="px-4 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition"
+                className="btn-secondary px-4 py-2 rounded-lg font-medium transition"
               >
                 Cancel
               </button>
               <button
                 onClick={testConnection}
                 disabled={testingConnection || configLoading}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition"
+                className="btn-secondary flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition"
               >
                 {testingConnection ? <Loader size={16} className="animate-spin" /> : <Wifi size={16} />}
                 Test Connection
@@ -1380,11 +1956,119 @@ export default function EmailTab() {
               <button
                 onClick={saveConfig}
                 disabled={configLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition"
+                className="btn-primary flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition disabled:bg-gray-400"
               >
                 {configLoading ? <Loader size={16} className="animate-spin" /> : null}
                 Save Configuration
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto-Reply Settings Modal */}
+      {showAutoReply && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full">
+            <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Auto-Reply Configuration</h2>
+              <button
+                onClick={() => setShowAutoReply(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="px-6 py-4 space-y-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoReplySettings.enabled}
+                  onChange={(e) => setAutoReplySettings({
+                    ...autoReplySettings,
+                    enabled: e.target.checked
+                  })}
+                  className="w-4 h-4 rounded border-gray-300"
+                />
+                <span className="text-sm font-medium text-gray-700">Enable Auto-Reply</span>
+              </label>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Auto-Reply Behavior</label>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                  <p className="text-xs text-blue-800 font-medium">
+                    ℹ️ Email replies are always saved as <strong>drafts for human review</strong> before sending.
+                  </p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    When unread emails are detected, AI generates replies with database context and saves them as drafts in the Drafts tab.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">AI Instructions</label>
+                <textarea
+                  value={autoReplySettings.ai_instructions}
+                  onChange={(e) => setAutoReplySettings({
+                    ...autoReplySettings,
+                    ai_instructions: e.target.value
+                  })}
+                  placeholder="e.g., Be professional and concise. Focus on customer satisfaction."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm h-24"
+                />
+              </div>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoReplySettings.use_database}
+                  onChange={(e) => setAutoReplySettings({
+                    ...autoReplySettings,
+                    use_database: e.target.checked
+                  })}
+                  className="w-4 h-4 rounded border-gray-300"
+                />
+                <span className="text-sm font-medium text-gray-700">Include Database Context in Replies</span>
+              </label>
+            </div>
+
+            <div className="border-t border-gray-200 px-6 py-4 flex gap-2 justify-end">
+              <button
+                onClick={() => setShowAutoReply(false)}
+                className="btn-secondary px-4 py-2 rounded-lg font-medium transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={updateAutoReplySettings}
+                disabled={autoReplyLoading}
+                className="btn-success flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition disabled:bg-gray-400"
+              >
+                {autoReplyLoading ? <Loader size={16} className="animate-spin mr-2" /> : null}
+                Save Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Authorized Emails Modal */}
+      {showAuthorizedEmails && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 bg-white">
+              <h2 className="text-lg font-semibold text-gray-900">Authorized Emails</h2>
+              <button
+                onClick={() => setShowAuthorizedEmails(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="px-6 py-4">
+              <AuthorizedContactsPanel contactType="email" />
             </div>
           </div>
         </div>

@@ -702,7 +702,7 @@ export default function MultiPersonChat() {
                           <Mic size={16} /> Start Recording
                         </button>
                         <label className="w-full cursor-pointer">
-                          <div className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2 border border-gray-300">
+                          <div className="text-gray-700 font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2 border border-gray-300">
                             <Upload size={16} /> Upload Audio File
                           </div>
                           <input
@@ -784,7 +784,7 @@ export default function MultiPersonChat() {
                               className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                                 currentParticipant === p
                                   ? 'bg-brand-600 text-white'
-                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                  : 'text-gray-600'
                               }`}
                             >
                               {p}
@@ -792,7 +792,7 @@ export default function MultiPersonChat() {
                           ))}
                           <button
                             onClick={addParticipant}
-                            className="px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 border border-dashed border-gray-300"
+                            className="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 border border-dashed border-gray-300"
                           >
                             <Plus size={16} />
                           </button>
@@ -864,7 +864,7 @@ export default function MultiPersonChat() {
                                     </button>
                                     <button
                                       onClick={cancelEdit}
-                                      className="text-xs px-2 py-1 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded"
+                                      className="text-xs px-2 py-1 text-gray-700 rounded"
                                     >
                                       Cancel
                                     </button>
@@ -920,7 +920,7 @@ export default function MultiPersonChat() {
                                           className={`text-xs px-2.5 py-1.5 rounded transition ${
                                             statementTranslations[conv.id]?.[`translatedTo${lang}`]
                                               ? 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-300'
-                                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300'
+                                              : 'text-gray-600 border border-gray-300'
                                           }`}
                                         >
                                           {lang.charAt(0).toUpperCase() + lang.slice(1)}
@@ -1088,7 +1088,7 @@ export default function MultiPersonChat() {
                     className={`w-full font-medium py-2.5 px-3 rounded-lg flex items-center justify-center gap-2 transition transform ${
                       aiInstructions.trim()
                         ? 'btn-primary hover:scale-105 active:scale-95'
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'text-gray-400 cursor-not-allowed'
                     }`}
                   >
                     {loading ? (
@@ -1199,7 +1199,7 @@ export default function MultiPersonChat() {
                       <button
                         onClick={rejectAction}
                         disabled={loading}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 flex items-center justify-center gap-2"
                       >
                         <AlertCircle size={16} /> Reject & Refine
                       </button>

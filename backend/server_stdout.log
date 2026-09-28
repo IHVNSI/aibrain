@@ -1,0 +1,78 @@
+2026-09-22 17:54:41,061 INFO [app] 🔄 Starting schema evolution check...
+2026-09-22 17:54:41,065 INFO [app] 📋 Conversations table columns: {'is_shared', 'conversation_id', 'user_id', 'created_at', 'title', 'messages', 'id', 'updated_at'}
+2026-09-22 17:54:41,067 INFO [app] ✅ user_id column already exists in conversations table
+2026-09-22 17:54:41,069 INFO [app] ✅ is_shared column already exists in conversations table
+2026-09-22 17:54:41,073 INFO [app] ✅ user_id column already exists in audit_logs table
+2026-09-22 17:54:41,075 INFO [app] ✅ is_api column already exists in audit_logs table
+2026-09-22 17:54:41,076 INFO [app] ✅ company_type_field column already exists in auth_config table
+2026-09-22 17:54:41,077 INFO [app] ✅ username column already exists in audit_logs table
+2026-09-22 17:54:41,077 INFO [app] ✅ role_name column already exists in audit_logs table
+2026-09-22 17:54:41,078 INFO [app] ✅ assigned_branches column already exists in users table
+2026-09-22 17:54:41,145 INFO [app] 🤖 Initializing AI Context with default instructions...
+2026-09-22 17:54:41,163 INFO [app] ✅ AI Context initialized successfully
+2026-09-22 17:54:41,228 INFO [app.microservice_auth] 🔧 Microservice mode: False
+2026-09-22 17:54:41,229 INFO [app.microservice_auth] 🔐 Token algorithm: RS256
+2026-09-22 17:54:43,123 INFO [engineio.server] Server initialized for threading.
+2026-09-22 17:54:43,126 INFO [app] ✓ WebSocket (SocketIO) initialized for real-time updates
+2026-09-22 17:54:43,128 INFO [app.api.auth] ✓ Created system role: Admin
+2026-09-22 17:54:43,133 INFO [app.api.auth] ✓ Created system role: Support
+2026-09-22 17:54:43,134 INFO [app.api.auth] ✓ Created system role: Central Admin
+2026-09-22 17:54:43,138 INFO [app.api.auth] ✓ Created system role: Regional Admin
+2026-09-22 17:54:43,141 INFO [app.api.auth] ✓ Created system role: Branch Admin
+2026-09-22 17:54:43,143 INFO [app.api.auth] ✓ Created system role: Branch Support
+2026-09-22 17:54:43,145 INFO [app.api.auth] ✓ Created system role: User
+2026-09-22 17:54:43,264 WARNING [app.api.auth] ⚠️  Created default admin user. Please set password via database migration or reset script.
+2026-09-22 17:54:43,266 INFO [app.api.auth] ✓ Added Admin role to admin user
+2026-09-22 17:54:43,373 INFO [app.api.auth] 👤 Seeded guest user (guest@guest.com / Guest123)
+2026-09-22 17:54:43,529 INFO [app] 📚 Swagger UI available at /api/docs/
+2026-09-22 17:54:43,538 INFO [app.llm.factory] ✅ Active LLM provider: gemini (gemini-2.5-flash)
+2026-09-22 17:54:46,014 INFO [app.vanna_service.service] ✅ Vanna initialized (vector_store=chromadb, llm=gemini)
+2026-09-22 17:54:46,095 INFO [app.vanna_service.service] ✅ Vanna connected to source database for SQL execution.
+2026-09-22 17:54:46,096 INFO [app] Engine startup status: {'ready': True, 'vector_store': 'chromadb', 'llm_provider': 'gemini', 'llm_model': 'gemini-2.5-flash', 'connected_db': True, 'init_error': None}
+2026-09-22 17:54:46,096 INFO [app] ✅ assistantai backend ready
+Starting Brainr server from: C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\backend
+Project root: C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr
+Backend root: C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\backend
+Port: 5001
+Debug: True
+✓ WebSocket (SocketIO) enabled - Real-time email and WhatsApp listening active
+ * Serving Flask app 'app'
+ * Debug mode: on
+2026-09-22 17:54:46,440 INFO [werkzeug] [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.2.0.2:5001
+2026-09-22 17:54:46,441 INFO [werkzeug] [33mPress CTRL+C to quit[0m
+2026-09-22 17:54:46,441 INFO [werkzeug]  * Restarting with stat
+2026-09-22 17:54:47,589 INFO [app] 🔄 Starting schema evolution check...
+2026-09-22 17:54:47,594 INFO [app] 📋 Conversations table columns: {'created_at', 'messages', 'title', 'updated_at', 'conversation_id', 'id', 'is_shared', 'user_id'}
+2026-09-22 17:54:47,595 INFO [app] ✅ user_id column already exists in conversations table
+2026-09-22 17:54:47,596 INFO [app] ✅ is_shared column already exists in conversations table
+2026-09-22 17:54:47,597 INFO [app] ✅ user_id column already exists in audit_logs table
+2026-09-22 17:54:47,597 INFO [app] ✅ is_api column already exists in audit_logs table
+2026-09-22 17:54:47,598 INFO [app] ✅ company_type_field column already exists in auth_config table
+2026-09-22 17:54:47,599 INFO [app] ✅ username column already exists in audit_logs table
+2026-09-22 17:54:47,599 INFO [app] ✅ role_name column already exists in audit_logs table
+2026-09-22 17:54:47,600 INFO [app] ✅ assigned_branches column already exists in users table
+2026-09-22 17:54:47,691 INFO [app] 🔄 Initializing table-role access (first run)...
+2026-09-22 17:54:48,396 INFO [app] ✅ Initialized table-role access: 72 tables × 7 roles
+2026-09-22 17:54:48,402 INFO [app] ✅ AI Context already exists
+2026-09-22 17:54:48,472 INFO [app.microservice_auth] 🔧 Microservice mode: False
+2026-09-22 17:54:48,473 INFO [app.microservice_auth] 🔐 Token algorithm: RS256
+2026-09-22 17:54:50,509 INFO [engineio.server] Server initialized for threading.
+2026-09-22 17:54:50,511 INFO [app] ✓ WebSocket (SocketIO) initialized for real-time updates
+2026-09-22 17:54:50,524 INFO [app.api.auth] ✓ Admin user exists and is active
+2026-09-22 17:54:50,728 INFO [app] 📚 Swagger UI available at /api/docs/
+2026-09-22 17:54:50,732 INFO [app.llm.factory] ✅ Active LLM provider: gemini (gemini-2.5-flash)
+2026-09-22 17:54:53,059 INFO [app.vanna_service.service] ✅ Vanna initialized (vector_store=chromadb, llm=gemini)
+2026-09-22 17:54:53,062 INFO [app.vanna_service.service] ✅ Vanna connected to source database for SQL execution.
+2026-09-22 17:54:53,063 INFO [app] Engine startup status: {'ready': True, 'vector_store': 'chromadb', 'llm_provider': 'gemini', 'llm_model': 'gemini-2.5-flash', 'connected_db': True, 'init_error': None}
+2026-09-22 17:54:53,064 INFO [app] ✅ assistantai backend ready
+Starting Brainr server from: C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\backend
+Project root: C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr
+Backend root: C:\Users\Ogochukwu\Desktop\PROJECTS\PYTHON\brainr\backend
+Port: 5001
+Debug: True
+✓ WebSocket (SocketIO) enabled - Real-time email and WhatsApp listening active
+2026-09-22 17:54:53,078 WARNING [werkzeug]  * Debugger is active!
+2026-09-22 17:54:53,082 INFO [werkzeug]  * Debugger PIN: 956-552-882
